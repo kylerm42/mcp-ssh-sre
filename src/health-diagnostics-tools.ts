@@ -74,7 +74,7 @@ export function registerHealthDiagnosticsTools(
   // Tool 1: health check comprehensive - All-in-one health check
   server.tool(
     "health check comprehensive",
-    "Perform a comprehensive health check of the Unraid system. Aggregates array status, drive temperatures, disk space, container health, and CPU/memory usage. Returns a summary with OK/WARNING/CRITICAL status for each category. Supports comprehensive output filtering.",
+    "Full health check (array, temps, disk, containers, CPU/memory).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -335,7 +335,7 @@ export function registerHealthDiagnosticsTools(
   // Tool 2: health detect common issues - Pattern-match known problems
   server.tool(
     "health detect common issues",
-    "Scan for common known issues and problems. Checks for high temperatures (>50°C), disks >90% full, containers restarting, parity errors, and unclean shutdowns. Returns a list of detected issues with severity levels. Supports comprehensive output filtering.",
+    "Scan for known issues (temps, disk space, restarts, parity).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -553,7 +553,7 @@ export function registerHealthDiagnosticsTools(
   // Tool 3: health threshold alerts - Check metrics against thresholds
   server.tool(
     "health threshold alerts",
-    "Check if any system metrics exceed specified thresholds. Monitors CPU usage, memory usage, disk usage, and drive temperatures against custom or default thresholds. Returns alerts when thresholds are exceeded. Supports comprehensive output filtering.",
+    "Alert when metrics exceed thresholds.",
     {
       cpuThreshold: z
         .number()
@@ -561,28 +561,28 @@ export function registerHealthDiagnosticsTools(
         .max(100)
         .optional()
         .default(80)
-        .describe("CPU usage threshold percentage (default: 80)"),
+        .describe("CPU % (default: 80)"),
       memThreshold: z
         .number()
         .min(0)
         .max(100)
         .optional()
         .default(90)
-        .describe("Memory usage threshold percentage (default: 90)"),
+        .describe("Memory % (default: 90)"),
       diskThreshold: z
         .number()
         .min(0)
         .max(100)
         .optional()
         .default(90)
-        .describe("Disk usage threshold percentage (default: 90)"),
+        .describe("Disk % (default: 90)"),
       tempThreshold: z
         .number()
         .min(0)
         .max(100)
         .optional()
         .default(50)
-        .describe("Drive temperature threshold in Celsius (default: 50)"),
+        .describe("Temp °C (default: 50)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -721,13 +721,13 @@ export function registerHealthDiagnosticsTools(
   // Tool 4: health compare baseline - Compare vs baseline
   server.tool(
     "health compare baseline",
-    "Compare current system state against a saved baseline snapshot. Can save a new baseline or compare against an existing one. Tracks changes in container count, disk usage, running processes, and memory usage over time. Supports comprehensive output filtering.",
+    "Compare current state vs saved baseline.",
     {
       baselineFile: z
         .string()
         .optional()
         .default("/tmp/unraid-baseline.json")
-        .describe("Path to baseline file (default: /tmp/unraid-baseline.json)"),
+        .describe("Baseline file path"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -888,13 +888,13 @@ export function registerHealthDiagnosticsTools(
   // Tool 5: health generate diagnostic report - Comprehensive report
   server.tool(
     "health generate diagnostic report",
-    "Generate a comprehensive diagnostic report of the entire Unraid system. Aggregates system information, array status, container status, disk usage, temperatures, and recent log entries into a formatted report. Supports text or markdown output. Supports comprehensive output filtering.",
+    "Generate full diagnostic report (text or markdown).",
     {
       format: z
         .enum(["text", "markdown"])
         .optional()
         .default("text")
-        .describe("Report format: 'text' or 'markdown' (default: text)"),
+        .describe("Format (default: text)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -1075,12 +1075,12 @@ export function registerHealthDiagnosticsTools(
   // Tool 6: health snapshot system state - Save system state
   server.tool(
     "health snapshot system state",
-    "Capture and save a complete snapshot of the current system state. Includes container information, disk usage, running processes, memory state, and network configuration. Returns the snapshot as JSON and optionally saves it to a file. Supports comprehensive output filtering.",
+    "Capture system state snapshot as JSON.",
     {
       name: z
         .string()
         .optional()
-        .describe("Optional name for the snapshot (will be used in filename)"),
+        .describe("Snapshot name for filename"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

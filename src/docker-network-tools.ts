@@ -17,9 +17,9 @@ export function registerDockerNetworkTools(
   // Tool 1: docker list networks - List all Docker networks
   server.tool(
     "docker list networks",
-    "List all Docker networks with their driver type and scope. Shows network ID, name, driver, and scope. Supports comprehensive output filtering.",
+    "List Docker networks (ID, name, driver, scope).",
     {
-      filter: z.string().optional().describe("Filter networks by driver (e.g., bridge, host, overlay)"),
+      filter: z.string().optional().describe("Filter by driver"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -60,7 +60,7 @@ export function registerDockerNetworkTools(
   // Tool 2: docker inspect network - Get detailed network information
   server.tool(
     "docker inspect network",
-    "Get detailed information about a Docker network including connected containers, subnet, gateway, and configuration. Supports comprehensive output filtering.",
+    "Get network details (containers, subnet, gateway, config).",
     {
       network: z.string().describe("Network name or ID"),
       ...outputFiltersSchema.shape,
@@ -103,9 +103,9 @@ export function registerDockerNetworkTools(
   // Tool 3: docker list volumes - List all Docker volumes
   server.tool(
     "docker list volumes",
-    "List all Docker volumes with their driver and mountpoint information. Supports comprehensive output filtering.",
+    "List Docker volumes (driver, mountpoint).",
     {
-      dangling: z.boolean().optional().describe("Show only dangling (unused) volumes"),
+      dangling: z.boolean().optional().describe("Only unused volumes"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -148,7 +148,7 @@ export function registerDockerNetworkTools(
   // Tool 4: docker inspect volume - Get detailed volume information
   server.tool(
     "docker inspect volume",
-    "Get detailed information about a Docker volume including mountpoint, driver, labels, and options. Supports comprehensive output filtering.",
+    "Get volume details (mountpoint, driver, labels, options).",
     {
       volume: z.string().describe("Volume name"),
       ...outputFiltersSchema.shape,
@@ -191,7 +191,7 @@ export function registerDockerNetworkTools(
   // Tool 5: docker network containers - Show containers connected to a network
   server.tool(
     "docker network containers",
-    "List all containers connected to a specific Docker network with their IP addresses. Supports comprehensive output filtering.",
+    "List containers on a network with IPs.",
     {
       network: z.string().describe("Network name or ID"),
       ...outputFiltersSchema.shape,

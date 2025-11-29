@@ -17,9 +17,9 @@ export function registerDockerTools(
   // Tool 1: docker list containers - List all containers with status
   server.tool(
     "docker list containers",
-    "List all Docker containers with their status. Returns container ID, name, image, status, state, and ports. Supports comprehensive output filtering.",
+    "List all Docker containers with ID, name, image, status, state, and ports.",
     {
-      all: z.boolean().optional().default(true).describe("Show all containers (default: true). Set to false to show only running containers."),
+      all: z.boolean().optional().default(true).describe("Include stopped containers"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -83,7 +83,7 @@ export function registerDockerTools(
   // Tool 2: docker inspect - Get detailed container info
   server.tool(
     "docker inspect",
-    "Get detailed information about a Docker container in JSON format. Includes configuration, state, network settings, mounts, and more. Supports comprehensive output filtering.",
+    "Get detailed container info in JSON (config, state, network, mounts).",
     {
       container: z.string().describe("Container name or ID"),
       ...outputFiltersSchema.shape,
@@ -126,11 +126,11 @@ export function registerDockerTools(
   // Tool 3: docker logs - Retrieve container logs
   server.tool(
     "docker logs",
-    "Retrieve logs from a Docker container. Can filter by number of lines, time range, or use comprehensive output filters. Note: Docker-specific --tail/--since are separate from filter tail/head.",
+    "Retrieve container logs with optional line/time filters.",
     {
       container: z.string().describe("Container name or ID"),
-      dockerTail: z.number().optional().describe("Docker-specific: Number of lines to show from end of logs (--tail flag)"),
-      dockerSince: z.string().optional().describe("Docker-specific: Show logs since timestamp (e.g. 2013-01-02T13:23:37Z) or relative (e.g. 42m)"),
+      dockerTail: z.number().optional().describe("Lines from end (--tail)"),
+      dockerSince: z.string().optional().describe("Since timestamp or relative (e.g. 42m)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -174,9 +174,9 @@ export function registerDockerTools(
   // Tool 4: docker stats snapshot - Get current resource usage
   server.tool(
     "docker stats snapshot",
-    "Get a snapshot of current resource usage for Docker containers. Shows CPU %, memory usage/limit, memory %, network I/O, and block I/O. Non-streaming, returns immediately. Supports comprehensive output filtering.",
+    "Get current CPU/memory/network/block I/O for containers (non-streaming).",
     {
-      container: z.string().optional().describe("Container name or ID (all containers if not specified)"),
+      container: z.string().optional().describe("Container (all if not specified)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -217,7 +217,7 @@ export function registerDockerTools(
   // Tool 5: docker port - Show port mappings
   server.tool(
     "docker port",
-    "Show port mappings for a Docker container. Lists which container ports are mapped to which host ports. Supports comprehensive output filtering.",
+    "Show container-to-host port mappings.",
     {
       container: z.string().describe("Container name or ID"),
       ...outputFiltersSchema.shape,

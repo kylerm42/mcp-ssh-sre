@@ -17,7 +17,7 @@ export function registerPluginConfigTools(
   // Plugin list plugins
   server.tool(
     "plugin list plugins",
-    "List all installed Unraid plugins with their versions by reading from /boot/config/plugins/. Supports comprehensive output filtering.",
+    "List installed Unraid plugins with versions.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -89,7 +89,7 @@ export function registerPluginConfigTools(
   // Plugin check plugin updates
   server.tool(
     "plugin check plugin updates",
-    "Check for available plugin updates by parsing .plg files for update URLs and comparing versions. Supports comprehensive output filtering.",
+    "Check plugin update URLs and current versions.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -163,9 +163,9 @@ export function registerPluginConfigTools(
   // Plugin read docker template
   server.tool(
     "plugin read docker template",
-    "Read and parse a Docker template XML file from /boot/config/plugins/dockerMan/templates-user/. Supports comprehensive output filtering.",
+    "Read Docker template XML from templates-user directory.",
     {
-      template: z.string().describe("Template name (with or without .xml extension)"),
+      template: z.string().describe("Template name"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -211,7 +211,7 @@ export function registerPluginConfigTools(
   // Plugin list user scripts
   server.tool(
     "plugin list user scripts",
-    "List all user scripts from /boot/config/plugins/user.scripts/scripts/ with their schedules and last run times. Supports comprehensive output filtering.",
+    "List user scripts with schedules and last run times.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -321,9 +321,9 @@ export function registerPluginConfigTools(
   // Plugin check share config
   server.tool(
     "plugin check share config",
-    "Validate share configurations from /boot/config/shares/*.cfg and check for misconfigurations. Supports comprehensive output filtering.",
+    "Validate share configurations and check for misconfigurations.",
     {
-      share: z.string().optional().describe("Specific share name to check (optional, checks all if not specified)"),
+      share: z.string().optional().describe("Share name (default: all)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -423,7 +423,7 @@ export function registerPluginConfigTools(
   // Plugin check disk assignments
   server.tool(
     "plugin check disk assignments",
-    "Verify disk assignments from /boot/config/disk.cfg showing array and cache disk assignments. Supports comprehensive output filtering.",
+    "Show array and cache disk assignments from disk.cfg.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -497,20 +497,20 @@ export function registerPluginConfigTools(
   // Plugin find recent changes
   server.tool(
     "plugin find recent changes",
-    "Find recently modified configuration files within a specified time period. Supports comprehensive output filtering.",
+    "Find recently modified config files.",
     {
       path: z
         .string()
         .optional()
         .default("/boot/config")
-        .describe("Path to search for changes (default: /boot/config)"),
+        .describe("Path (default: /boot/config)"),
       hours: z
         .number()
         .int()
         .positive()
         .optional()
         .default(24)
-        .describe("Number of hours to look back (default: 24)"),
+        .describe("Hours to look back (default: 24)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

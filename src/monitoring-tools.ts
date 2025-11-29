@@ -18,12 +18,12 @@ export function registerMonitoringTools(
   // Tool 1: monitoring ps list - List all running processes
   server.tool(
     "monitoring ps list",
-    "List all running processes with details. Can be sorted by CPU or memory usage. Shows PID, user, CPU%, memory%, and command. Supports comprehensive output filtering.",
+    "List processes (PID, user, CPU%, memory%, command).",
     {
       sortBy: z
         .enum(["cpu", "memory"])
         .optional()
-        .describe("Sort processes by 'cpu' or 'memory' usage (optional)"),
+        .describe("Sort by cpu or memory"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -67,7 +67,7 @@ export function registerMonitoringTools(
   // Tool 2: monitoring process tree - Show process hierarchy
   server.tool(
     "monitoring process tree",
-    "Display process hierarchy showing parent-child relationships. Shows the tree structure of all running processes with PIDs. Supports comprehensive output filtering.",
+    "Display process hierarchy (parent-child tree).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -106,7 +106,7 @@ export function registerMonitoringTools(
   // Tool 3: monitoring top snapshot - Snapshot of top processes
   server.tool(
     "monitoring top snapshot",
-    "Get a snapshot of top processes with current system load and resource usage. Non-streaming, returns immediately with detailed CPU, memory, and process information. Supports comprehensive output filtering.",
+    "Get top processes with CPU/memory info (non-streaming).",
     {
       count: z
         .number()
@@ -114,7 +114,7 @@ export function registerMonitoringTools(
         .positive()
         .optional()
         .default(20)
-        .describe("Number of top processes to show (default: 20)"),
+        .describe("Process count (default: 20)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -154,7 +154,7 @@ export function registerMonitoringTools(
   // Tool 4: monitoring iostat snapshot - Disk I/O statistics
   server.tool(
     "monitoring iostat snapshot",
-    "Get disk I/O statistics showing read/write throughput and utilization. Returns a single snapshot of extended disk statistics including tps, read/write rates, and utilization percentages. Supports comprehensive output filtering.",
+    "Get disk I/O stats (throughput, utilization).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -194,12 +194,12 @@ export function registerMonitoringTools(
   // Tool 5: monitoring network connections - Active network connections
   server.tool(
     "monitoring network connections",
-    "Show active network connections and listening ports. Displays TCP and UDP connections with process information. Can optionally filter to show only listening ports. Supports comprehensive output filtering.",
+    "Show network connections and listening ports.",
     {
       listening: z
         .boolean()
         .optional()
-        .describe("Show only listening ports (default: false, shows all connections)"),
+        .describe("Only listening ports"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

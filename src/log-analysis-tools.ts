@@ -18,16 +18,16 @@ export function registerLogAnalysisTools(
   // Tool 1: log grep all logs - Search across all logs
   server.tool(
     "log grep all logs",
-    "Search across all system logs including syslog, docker container logs, and application logs in /var/log/. Aggregates results showing source and matches. Supports comprehensive output filtering.",
+    "Search pattern across syslog, docker, and /var/log/.",
     {
       pattern: z
         .string()
-        .describe("The search pattern to look for in logs"),
+        .describe("Search pattern"),
       caseSensitive: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Whether the search should be case-sensitive (default: false)"),
+        .describe("Case-sensitive"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -86,7 +86,7 @@ export function registerLogAnalysisTools(
   // Tool 2: log error aggregator - Find and deduplicate errors
   server.tool(
     "log error aggregator",
-    "Find and deduplicate errors from logs in the last N hours. Searches for 'error', 'fail', 'exception', 'critical' patterns and groups identical errors with counts. Supports comprehensive output filtering.",
+    "Find and deduplicate errors with counts.",
     {
       hours: z
         .number()
@@ -94,14 +94,14 @@ export function registerLogAnalysisTools(
         .positive()
         .optional()
         .default(24)
-        .describe("Number of hours to look back (default: 24)"),
+        .describe("Hours to look back (default: 24)"),
       minCount: z
         .number()
         .int()
         .positive()
         .optional()
         .default(1)
-        .describe("Minimum occurrence count to include (default: 1)"),
+        .describe("Min count (default: 1)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -158,7 +158,7 @@ export function registerLogAnalysisTools(
   // Tool 3: log timeline - Timeline of significant events
   server.tool(
     "log timeline",
-    "Create a chronological timeline of significant events including container starts/stops, errors, array events, and mover runs in the last N hours. Supports comprehensive output filtering.",
+    "Timeline of events (container, error, array, mover).",
     {
       hours: z
         .number()
@@ -166,7 +166,7 @@ export function registerLogAnalysisTools(
         .positive()
         .optional()
         .default(24)
-        .describe("Number of hours to look back (default: 24)"),
+        .describe("Hours to look back (default: 24)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -221,23 +221,23 @@ export function registerLogAnalysisTools(
   // Tool 4: log parse docker logs - Parse structured logs
   server.tool(
     "log parse docker logs",
-    "Parse and pretty-print Docker container logs. Can detect and parse JSON-formatted logs for better readability. Supports comprehensive output filtering.",
+    "Parse and pretty-print container logs (auto-detects JSON).",
     {
       container: z
         .string()
-        .describe("Name or ID of the container"),
+        .describe("Container name or ID"),
       jsonLines: z
         .boolean()
         .optional()
         .default(false)
-        .describe("Attempt to parse logs as JSON lines (default: false, auto-detect)"),
+        .describe("Force JSON parsing"),
       lines: z
         .number()
         .int()
         .positive()
         .optional()
         .default(100)
-        .describe("Number of log lines to retrieve (default: 100)"),
+        .describe("Lines (default: 100)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -300,14 +300,14 @@ export function registerLogAnalysisTools(
   // Tool 5: log compare logs timerange - Events between times
   server.tool(
     "log compare logs timerange",
-    "Show all significant events that occurred between two specific times. Helps answer 'what happened between X and Y?' Uses journalctl and syslog. Supports comprehensive output filtering.",
+    "Show events between two times.",
     {
       startTime: z
         .string()
-        .describe("Start time in format like '2025-01-15 10:30:00' or '10 minutes ago' or '1 hour ago'"),
+        .describe("Start (e.g. '10 minutes ago')"),
       endTime: z
         .string()
-        .describe("End time in format like '2025-01-15 11:30:00' or '5 minutes ago' or 'now'"),
+        .describe("End (e.g. 'now')"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -359,7 +359,7 @@ export function registerLogAnalysisTools(
   // Tool 6: log container restart history - Recent container restarts
   server.tool(
     "log container restart history",
-    "Show which containers have restarted in the last N hours and why. Parses docker events and syslog for restart information. Supports comprehensive output filtering.",
+    "Show container restarts with reasons.",
     {
       hours: z
         .number()
@@ -367,7 +367,7 @@ export function registerLogAnalysisTools(
         .positive()
         .optional()
         .default(24)
-        .describe("Number of hours to look back (default: 24)"),
+        .describe("Hours (default: 24)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
