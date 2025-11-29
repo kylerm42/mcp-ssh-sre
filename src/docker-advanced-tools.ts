@@ -18,7 +18,7 @@ export function registerDockerAdvancedTools(
   // Tool 1: docker container env - Show container environment variables
   server.tool(
     "docker container env",
-    "Show all environment variables configured in a Docker container. Useful for debugging configuration issues and seeing what variables are available to the container's processes. Supports comprehensive output filtering.",
+    "Show container environment variables.",
     {
       container: z.string().describe("Container name or ID"),
       ...outputFiltersSchema.shape,
@@ -59,7 +59,7 @@ export function registerDockerAdvancedTools(
   // Tool 2: docker top - Show processes inside container
   server.tool(
     "docker top",
-    "Show all processes running inside a Docker container. Displays PID, user, and command for each process. Useful for understanding what's actually running in the container and debugging process-related issues. Supports comprehensive output filtering.",
+    "Show processes running inside a container (PID, user, command).",
     {
       container: z.string().describe("Container name or ID"),
       ...outputFiltersSchema.shape,
@@ -98,7 +98,7 @@ export function registerDockerAdvancedTools(
   // Tool 3: docker health check all - Health status of all containers
   server.tool(
     "docker health check all",
-    "Show health status of all Docker containers. Displays container name, running status, and health check status (if configured). Useful for quickly identifying unhealthy containers. Supports comprehensive output filtering.",
+    "Show health status of all containers (healthy/unhealthy/no healthcheck).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -170,10 +170,10 @@ export function registerDockerAdvancedTools(
   // Tool 4: docker logs aggregate - Search logs across multiple containers
   server.tool(
     "docker logs aggregate",
-    "Search for a pattern across logs of all running containers. Useful for finding which container is generating specific log messages or errors. Searches case-insensitively. Supports comprehensive output filtering.",
+    "Search pattern across logs of all running containers.",
     {
-      pattern: z.string().describe("Pattern to search for in logs (case-insensitive grep)"),
-      lines: z.number().optional().default(100).describe("Number of log lines to check per container (default: 100)"),
+      pattern: z.string().describe("Pattern to search (case-insensitive)"),
+      lines: z.number().optional().default(100).describe("Lines per container (default: 100)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

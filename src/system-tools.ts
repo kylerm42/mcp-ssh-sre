@@ -17,10 +17,10 @@ export function registerSystemTools(
   // System list files tool
   server.tool(
     "system list files",
-    "List contents of a directory on the Unraid server. Use long format for detailed file information. Supports comprehensive output filtering.",
+    "List directory contents.",
     {
-      path: z.string().describe("Directory path to list"),
-      long: z.boolean().optional().describe("Use long format with details (ls -lah)"),
+      path: z.string().describe("Directory path"),
+      long: z.boolean().optional().describe("Long format (ls -lah)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -48,16 +48,16 @@ export function registerSystemTools(
   // System read file tool
   server.tool(
     "system read file",
-    "Read contents of a file on the Unraid server. Limited to first N lines for safety (default: 1000). Supports comprehensive output filtering.",
+    "Read file contents (limited to N lines for safety).",
     {
-      path: z.string().describe("File path to read"),
+      path: z.string().describe("File path"),
       maxLines: z
         .number()
         .int()
         .positive()
         .optional()
         .default(1000)
-        .describe("Maximum number of lines to read (default: 1000)"),
+        .describe("Max lines (default: 1000)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -100,10 +100,10 @@ export function registerSystemTools(
   // System find files tool
   server.tool(
     "system find files",
-    "Search for files by name pattern in a directory and its subdirectories. Supports wildcards (*.log, etc.). Supports comprehensive output filtering.",
+    "Search for files by pattern (supports wildcards).",
     {
-      path: z.string().describe("Directory path to search in"),
-      pattern: z.string().describe("File name pattern (supports wildcards like *.log)"),
+      path: z.string().describe("Directory to search"),
+      pattern: z.string().describe("File pattern (e.g. *.log)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -153,13 +153,13 @@ export function registerSystemTools(
   // System disk usage tool
   server.tool(
     "system disk usage",
-    "Check disk usage and available space for a given path or filesystem. Supports comprehensive output filtering.",
+    "Check disk usage and available space.",
     {
       path: z
         .string()
         .optional()
         .default("/")
-        .describe("Path to check disk usage for (default: /)"),
+        .describe("Path (default: /)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -188,7 +188,7 @@ export function registerSystemTools(
   // System get system info tool
   server.tool(
     "system get system info",
-    "Get comprehensive Unraid system information including kernel version, uptime, and memory usage. Supports comprehensive output filtering.",
+    "Get system info (kernel, uptime, memory).",
     {
       ...outputFiltersSchema.shape,
     },

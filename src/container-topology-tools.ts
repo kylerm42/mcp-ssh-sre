@@ -124,7 +124,7 @@ export function registerContainerTopologyTools(
   // Tool 1: container network topology - Network connectivity map
   server.tool(
     "container network topology",
-    "Analyze container network topology. Shows which containers are on which networks, their IP addresses, and network connectivity map. Supports comprehensive output filtering.",
+    "Map containers to networks with IPs and connectivity.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -215,7 +215,7 @@ export function registerContainerTopologyTools(
   // Tool 2: container volume sharing - Shared volumes analysis
   server.tool(
     "container volume sharing",
-    "Analyze shared volumes between containers. Shows which containers share which volumes. Supports comprehensive output filtering.",
+    "Find volumes shared between containers.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -311,9 +311,9 @@ export function registerContainerTopologyTools(
   // Tool 3: container dependency graph - Dependency relationships
   server.tool(
     "container dependency graph",
-    "Analyze container dependency relationships. Shows depends_on, links, and network_mode: container: relationships. Optionally filter by specific container. Supports comprehensive output filtering.",
+    "Show container dependencies (depends_on, links, network_mode).",
     {
-      container: z.string().optional().describe("Container name or ID to focus on (optional)"),
+      container: z.string().optional().describe("Container to focus on"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -435,7 +435,7 @@ export function registerContainerTopologyTools(
   // Tool 4: container port conflict check - Identify port conflicts
   server.tool(
     "container port conflict check",
-    "Check for port conflicts between containers. Identifies duplicate port mappings that could cause conflicts. Supports comprehensive output filtering.",
+    "Find duplicate/conflicting port mappings.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -537,11 +537,11 @@ export function registerContainerTopologyTools(
   // Tool 5: container communication test - Test container connectivity
   server.tool(
     "container communication test",
-    "Test network connectivity between two containers. Uses ping or netcat to verify if containers can communicate. Supports comprehensive output filtering.",
+    "Test network connectivity between containers (ping or netcat).",
     {
-      fromContainer: z.string().describe("Source container name or ID"),
-      toContainer: z.string().describe("Target container name or ID"),
-      port: z.number().optional().describe("Port to test (uses netcat if specified, otherwise uses ping)"),
+      fromContainer: z.string().describe("Source container"),
+      toContainer: z.string().describe("Target container"),
+      port: z.number().optional().describe("Port (netcat if set, else ping)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -617,10 +617,10 @@ export function registerContainerTopologyTools(
   // Tool 6: container dns test - DNS resolution testing
   server.tool(
     "container dns test",
-    "Test DNS resolution. Uses nslookup or dig to resolve hostnames. Optionally specify a DNS server. Supports comprehensive output filtering.",
+    "Test DNS resolution (nslookup/dig).",
     {
       hostname: z.string().describe("Hostname to resolve"),
-      dnsServer: z.string().optional().describe("DNS server to use (optional)"),
+      dnsServer: z.string().optional().describe("DNS server"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -688,10 +688,10 @@ export function registerContainerTopologyTools(
   // Tool 7: container ping test - Connectivity testing
   server.tool(
     "container ping test",
-    "Test network connectivity using ping. Default is 4 packets. Supports comprehensive output filtering.",
+    "Ping a host.",
     {
-      host: z.string().describe("Host to ping (IP address or hostname)"),
-      count: z.number().optional().default(4).describe("Number of packets to send (default: 4)"),
+      host: z.string().describe("Host to ping"),
+      count: z.number().optional().default(4).describe("Packet count (default: 4)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -734,9 +734,9 @@ export function registerContainerTopologyTools(
   // Tool 8: container traceroute test - Network path tracing
   server.tool(
     "container traceroute test",
-    "Trace the network path to a host. Uses traceroute or tracepath. Supports comprehensive output filtering.",
+    "Trace network path to host.",
     {
-      host: z.string().describe("Host to trace route to (IP address or hostname)"),
+      host: z.string().describe("Host to trace"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

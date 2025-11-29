@@ -17,7 +17,7 @@ export function registerUnraidTools(
   // Tool 1: unraid array status - Check Unraid array status
   server.tool(
     "unraid array status",
-    "Check Unraid array status including array state, disk status, and parity information. Shows which disks are active, their state, and sync progress if applicable. Supports comprehensive output filtering.",
+    "Check array state, disk status, and parity info.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -61,9 +61,9 @@ export function registerUnraidTools(
   // Tool 2: unraid drive smart status - Get SMART data for a drive
   server.tool(
     "unraid drive smart status",
-    "Get SMART data for a specific drive. Shows health status, temperature, error count, power-on hours, and other diagnostic information. Automatically detects drive type (SATA/NVMe). Supports comprehensive output filtering.",
+    "Get SMART data (health, temp, errors, hours).",
     {
-      device: z.string().describe("Device name (e.g., 'sda', 'nvme0n1')"),
+      device: z.string().describe("Device (e.g. sda, nvme0n1)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -109,7 +109,7 @@ export function registerUnraidTools(
   // Tool 3: unraid check temperatures - System and drive temperatures
   server.tool(
     "unraid check temperatures",
-    "Get system and drive temperatures. Collects CPU/system temperatures using sensors and drive temperatures from SMART data. Provides comprehensive thermal monitoring. Supports comprehensive output filtering.",
+    "Get CPU/system and drive temperatures.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -183,7 +183,7 @@ export function registerUnraidTools(
   // Tool 4: unraid shares list - List Unraid user shares
   server.tool(
     "unraid shares list",
-    "List all Unraid user shares. Shows share names and basic information from /mnt/user/ directory. Supports comprehensive output filtering.",
+    "List user shares from /mnt/user/.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -218,9 +218,9 @@ export function registerUnraidTools(
   // Tool 5: unraid share usage - Check share disk usage
   server.tool(
     "unraid share usage",
-    "Check disk usage for Unraid user shares. Can show usage for a specific share or all shares. Displays human-readable sizes. Supports comprehensive output filtering.",
+    "Check disk usage for user shares.",
     {
-      share: z.string().optional().describe("Specific share name (optional, shows all shares if not specified)"),
+      share: z.string().optional().describe("Share name (all if not specified)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

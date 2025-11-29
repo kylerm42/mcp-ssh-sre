@@ -17,7 +17,7 @@ export function registerUnraidArrayTools(
   // Tool 1: unraid parity check status - Current/last parity check status
   server.tool(
     "unraid parity check status",
-    "Get current or last parity check status including progress percentage, speed, errors found, and estimated completion time. Shows real-time information if a parity check is in progress. Supports comprehensive output filtering.",
+    "Get parity check status (progress, speed, errors).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -103,9 +103,9 @@ export function registerUnraidArrayTools(
   // Tool 2: unraid parity check history - Historical parity check results
   server.tool(
     "unraid parity check history",
-    "Get historical parity check results showing date, duration, errors found, and speed for the last N parity checks. Parses system logs to provide a complete history. Supports comprehensive output filtering.",
+    "Get historical parity check results.",
     {
-      limit: z.number().int().positive().optional().default(5).describe("Number of historical checks to show (default: 5)"),
+      limit: z.number().int().positive().optional().default(5).describe("History count (default: 5)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -167,7 +167,7 @@ export function registerUnraidArrayTools(
   // Tool 3: unraid array sync status - Real-time array sync/rebuild
   server.tool(
     "unraid array sync status",
-    "Get real-time array synchronization or rebuild status. Shows progress, speed, and estimated time remaining for any ongoing sync operations. Supports comprehensive output filtering.",
+    "Get array sync/rebuild progress.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -231,7 +231,7 @@ export function registerUnraidArrayTools(
   // Tool 4: unraid disk spin status - Drive spin up/down status
   server.tool(
     "unraid disk spin status",
-    "Check the spin status of all drives (active/standby/sleeping). Useful for monitoring which drives are spun down to save power and reduce wear. Supports comprehensive output filtering.",
+    "Check drive spin status (active/standby/sleeping).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -306,7 +306,7 @@ export function registerUnraidArrayTools(
   // Tool 5: unraid unclean shutdown check - Check for unclean shutdowns
   server.tool(
     "unraid unclean shutdown check",
-    "Check for unclean shutdowns by examining boot logs and system markers. Helps identify potential data integrity issues from improper shutdowns. Supports comprehensive output filtering.",
+    "Check for unclean shutdown markers.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -380,7 +380,7 @@ export function registerUnraidArrayTools(
   // Tool 6: unraid mover status - Mover status and last run
   server.tool(
     "unraid mover status",
-    "Get mover status showing if it's currently running and when it last ran. The mover transfers files from cache to array disks. Supports comprehensive output filtering.",
+    "Get mover status (running, last run).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -449,9 +449,9 @@ export function registerUnraidArrayTools(
   // Tool 7: unraid mover log - Read mover logs
   server.tool(
     "unraid mover log",
-    "Read recent mover logs showing file transfer activity. Shows which files were moved from cache to array disks. Supports comprehensive output filtering.",
+    "Read recent mover logs (file transfers).",
     {
-      lines: z.number().int().positive().optional().default(100).describe("Number of log lines to show (default: 100)"),
+      lines: z.number().int().positive().optional().default(100).describe("Log lines (default: 100)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -496,7 +496,7 @@ export function registerUnraidArrayTools(
   // Tool 8: unraid cache usage - Cache disk usage
   server.tool(
     "unraid cache usage",
-    "Get cache disk usage and breakdown of what's stored on the cache. Shows total usage and size of each directory on cache. Supports comprehensive output filtering.",
+    "Get cache disk usage breakdown.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -560,9 +560,9 @@ export function registerUnraidArrayTools(
   // Tool 9: unraid check split level - Verify share split level configs
   server.tool(
     "unraid check split level",
-    "Verify share split level configurations. Split level controls how files are distributed across array disks. Can check a specific share or all shares. Supports comprehensive output filtering.",
+    "Verify share split level configs.",
     {
-      share: z.string().optional().describe("Specific share name to check (optional, checks all shares if not specified)"),
+      share: z.string().optional().describe("Share name (all if not specified)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

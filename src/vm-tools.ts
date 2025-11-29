@@ -17,7 +17,7 @@ export function registerVMTools(
   // Tool 1: vm list - List VMs with status
   server.tool(
     "vm list",
-    "List all virtual machines with their status. Returns VM names, IDs, and states (running, shut off, paused, etc.). Supports comprehensive output filtering.",
+    "List VMs with status (running, shut off, paused).",
     {
       ...outputFiltersSchema.shape,
     },
@@ -52,7 +52,7 @@ export function registerVMTools(
   // Tool 2: vm info - VM resource allocation and config
   server.tool(
     "vm info",
-    "Get detailed information about a virtual machine including CPU, memory, state, autostart, and other configuration details. Supports comprehensive output filtering.",
+    "Get VM details (CPU, memory, state, autostart).",
     {
       vm: z.string().describe("VM name"),
       ...outputFiltersSchema.shape,
@@ -88,7 +88,7 @@ export function registerVMTools(
   // Tool 3: vm vnc info - VNC connection details
   server.tool(
     "vm vnc info",
-    "Get VNC connection details for a virtual machine. Shows VNC port/display information for remote access. Supports comprehensive output filtering.",
+    "Get VNC connection info for a VM.",
     {
       vm: z.string().describe("VM name"),
       ...outputFiltersSchema.shape,
@@ -152,10 +152,10 @@ export function registerVMTools(
   // Tool 4: vm libvirt logs - Read libvirt logs
   server.tool(
     "vm libvirt logs",
-    "Read libvirt/QEMU logs for virtual machines. Can show logs for a specific VM or all VMs. Useful for debugging VM issues. Supports comprehensive output filtering.",
+    "Read libvirt/QEMU logs for VMs.",
     {
-      vm: z.string().optional().describe("VM name (optional - if not specified, shows all available log files)"),
-      lines: z.number().optional().default(100).describe("Number of lines to show from end of log (default: 100)"),
+      vm: z.string().optional().describe("VM name (all if not specified)"),
+      lines: z.number().optional().default(100).describe("Log lines (default: 100)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

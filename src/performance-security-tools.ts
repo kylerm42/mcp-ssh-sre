@@ -18,7 +18,7 @@ export function registerPerformanceSecurityTools(
   // Tool 1: performance identify bottleneck - CPU/disk/network bottleneck analysis
   server.tool(
     "performance identify bottleneck",
-    "Analyze system to identify primary performance bottleneck (CPU, disk I/O, or network). Checks CPU usage, disk I/O wait times, and network saturation, then suggests improvements. Supports comprehensive output filtering.",
+    "Identify primary bottleneck (CPU, disk I/O, or network) with suggestions.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -136,7 +136,7 @@ ps aux --sort=-%cpu | head -15
   // Tool 2: performance network bandwidth by container - Network usage per container
   server.tool(
     "performance network bandwidth by container",
-    "Show network bandwidth usage per Docker container. Parses docker stats or /sys/class/net/*/statistics/ to display network I/O per container. Supports comprehensive output filtering.",
+    "Show network I/O per Docker container.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -181,11 +181,11 @@ cat /proc/net/dev
   // Tool 3: performance track metric over time - Sample metrics over time
   server.tool(
     "performance track metric over time",
-    "Sample system metrics over time and return time series data. Tracks CPU, memory, or disk metrics at specified intervals. Useful for identifying trends and patterns. Supports comprehensive output filtering.",
+    "Sample CPU, memory, or disk metrics over time as time series.",
     {
-      metric: z.enum(["cpu", "memory", "disk"]).describe("Metric to track: 'cpu', 'memory', or 'disk'"),
-      durationSeconds: z.number().int().positive().optional().default(30).describe("Total duration to track in seconds (default: 30)"),
-      intervalSeconds: z.number().int().positive().optional().default(5).describe("Sampling interval in seconds (default: 5)"),
+      metric: z.enum(["cpu", "memory", "disk"]).describe("Metric type"),
+      durationSeconds: z.number().int().positive().optional().default(30).describe("Total seconds (default: 30)"),
+      intervalSeconds: z.number().int().positive().optional().default(5).describe("Sample interval (default: 5)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
@@ -259,7 +259,7 @@ done
   // Tool 4: security check open ports - List externally open ports
   server.tool(
     "security check open ports",
-    "List all externally open ports and the processes listening on them. Uses ss or netstat to show listening TCP and UDP ports with process information. Important for security auditing. Supports comprehensive output filtering.",
+    "List listening TCP/UDP ports with process info.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -313,7 +313,7 @@ fi
   // Tool 5: security audit container privileges - Privileged container audit
   server.tool(
     "security audit container privileges",
-    "Audit Docker containers for elevated privileges and security concerns. Checks for privileged mode, host network mode, and dangerous capabilities. Essential for container security. Supports comprehensive output filtering.",
+    "Audit containers for privileged mode, host network, and dangerous capabilities.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -405,7 +405,7 @@ done
   // Tool 6: security check ssh connections - Active SSH sessions
   server.tool(
     "security check ssh connections",
-    "Show active SSH sessions and connections. Lists all logged-in users, their connection sources, login times, and current activities. Useful for security monitoring. Supports comprehensive output filtering.",
+    "Show active SSH sessions, logged-in users, and failed login attempts.",
     {
       ...outputFiltersSchema.shape,
     },
@@ -462,9 +462,9 @@ fi
   // Tool 7: security check cert expiry - SSL certificate expiration
   server.tool(
     "security check cert expiry",
-    "Check SSL/TLS certificate expiration dates. Scans common certificate locations or a specified path. Shows certificate details including subject, issuer, and expiration date. Helps prevent service disruptions from expired certificates. Supports comprehensive output filtering.",
+    "Check SSL/TLS certificate expiration dates.",
     {
-      certPath: z.string().optional().describe("Optional specific certificate file path to check. If not provided, checks common locations."),
+      certPath: z.string().optional().describe("Certificate path (default: common locations)"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
