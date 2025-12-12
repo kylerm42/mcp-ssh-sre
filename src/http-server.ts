@@ -5,16 +5,14 @@ import cors from "cors";
 import "dotenv/config";
 import { SSHConnectionManager } from "./ssh-manager.js";
 import { registerDockerTools } from "./docker-tools.js";
-import { registerDockerAdvancedTools } from "./docker-advanced-tools.js";
-import { registerDockerNetworkTools } from "./docker-network-tools.js";
 import { registerSystemTools } from "./system-tools.js";
 import { registerUnraidTools } from "./unraid-tools.js";
-import { registerUnraidArrayTools } from "./unraid-array-tools.js";
 import { registerMonitoringTools } from "./monitoring-tools.js";
 import { registerVMTools } from "./vm-tools.js";
 import { registerContainerTopologyTools } from "./container-topology-tools.js";
 import { registerPluginConfigTools } from "./plugin-config-tools.js";
-import { registerPerformanceSecurityTools } from "./performance-security-tools.js";
+import { registerPerformanceTools } from "./performance-tools.js";
+import { registerSecurityTools } from "./security-tools.js";
 import { registerLogAnalysisTools } from "./log-analysis-tools.js";
 import { registerResourceManagementTools } from "./resource-management-tools.js";
 import { registerHealthDiagnosticsTools } from "./health-diagnostics-tools.js";
@@ -136,7 +134,7 @@ async function main() {
   log.info("Initializing MCP server...");
   const server = new McpServer({
     name: "ssh-unraid-server-http",
-    version: "1.0.1",
+    version: "1.1.2",
   });
 
   // Create SSH executor adapter for tool modules
@@ -150,16 +148,14 @@ async function main() {
 
   // Register all tools
   registerDockerTools(server, sshExecutor);
-  registerDockerAdvancedTools(server, sshExecutor);
-  registerDockerNetworkTools(server, sshExecutor);
   registerSystemTools(server, sshExecutor);
   registerUnraidTools(server, sshExecutor);
-  registerUnraidArrayTools(server, sshExecutor);
   registerMonitoringTools(server, sshExecutor);
   registerVMTools(server, sshExecutor);
   registerContainerTopologyTools(server, sshExecutor);
   registerPluginConfigTools(server, sshExecutor);
-  registerPerformanceSecurityTools(server, sshExecutor);
+  registerPerformanceTools(server, sshExecutor);
+  registerSecurityTools(server, sshExecutor);
   registerLogAnalysisTools(server, sshExecutor);
   registerResourceManagementTools(server, sshExecutor);
   registerHealthDiagnosticsTools(server, sshExecutor);
@@ -326,7 +322,7 @@ async function main() {
       status,
       ssh_connected: isSSHConnected,
       server: "mcp-ssh-unraid",
-      version: "1.0.1",
+      version: "1.1.2",
       transport: "http",
       oauth: "enabled",
     });

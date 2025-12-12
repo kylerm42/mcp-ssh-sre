@@ -3,16 +3,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import "dotenv/config";
 import { SSHConnectionManager } from "./ssh-manager.js";
 import { registerDockerTools } from "./docker-tools.js";
-import { registerDockerAdvancedTools } from "./docker-advanced-tools.js";
-import { registerDockerNetworkTools } from "./docker-network-tools.js";
 import { registerSystemTools } from "./system-tools.js";
 import { registerUnraidTools } from "./unraid-tools.js";
-import { registerUnraidArrayTools } from "./unraid-array-tools.js";
 import { registerMonitoringTools } from "./monitoring-tools.js";
 import { registerVMTools } from "./vm-tools.js";
 import { registerContainerTopologyTools } from "./container-topology-tools.js";
 import { registerPluginConfigTools } from "./plugin-config-tools.js";
-import { registerPerformanceSecurityTools } from "./performance-security-tools.js";
+import { registerPerformanceTools } from "./performance-tools.js";
+import { registerSecurityTools } from "./security-tools.js";
 import { registerLogAnalysisTools } from "./log-analysis-tools.js";
 import { registerResourceManagementTools } from "./resource-management-tools.js";
 import { registerHealthDiagnosticsTools } from "./health-diagnostics-tools.js";
@@ -38,7 +36,7 @@ async function main() {
   // Create MCP server
   const server = new McpServer({
     name: "ssh-unraid-server",
-    version: "1.0.1",
+    version: "1.1.1",
   });
 
   // Create SSH executor adapter for tool modules
@@ -51,46 +49,18 @@ async function main() {
     return result.stdout;
   };
 
-  // Register all Docker tools
+  // Register all tools (12 consolidated mega-tools)
   registerDockerTools(server, sshExecutor);
-
-  // Register all advanced Docker tools
-  registerDockerAdvancedTools(server, sshExecutor);
-
-  // Register Docker network and volume tools
-  registerDockerNetworkTools(server, sshExecutor);
-
-  // Register all system tools
   registerSystemTools(server, sshExecutor);
-
-  // Register all Unraid tools
   registerUnraidTools(server, sshExecutor);
-
-  // Register all Unraid array, parity, and mover tools
-  registerUnraidArrayTools(server, sshExecutor);
-
-  // Register all monitoring tools
   registerMonitoringTools(server, sshExecutor);
-
-  // Register all VM tools
   registerVMTools(server, sshExecutor);
-
-  // Register all container topology tools
   registerContainerTopologyTools(server, sshExecutor);
-
-  // Register all plugin and configuration management tools
   registerPluginConfigTools(server, sshExecutor);
-
-  // Register all performance profiling and security audit tools
-  registerPerformanceSecurityTools(server, sshExecutor);
-
-  // Register all log analysis tools
+  registerPerformanceTools(server, sshExecutor);
+  registerSecurityTools(server, sshExecutor);
   registerLogAnalysisTools(server, sshExecutor);
-
-  // Register all resource management and optimization tools
   registerResourceManagementTools(server, sshExecutor);
-
-  // Register all health diagnostics tools
   registerHealthDiagnosticsTools(server, sshExecutor);
 
   // Handle graceful shutdown

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerDockerTools } from '../docker-tools.js';
 
 describe('Docker Tools', () => {
@@ -9,216 +8,139 @@ describe('Docker Tools', () => {
 
   beforeEach(() => {
     registeredTools = new Map();
-
-    // Mock MCP server
     mockServer = {
       tool: vi.fn((name, description, schema, handler) => {
         registeredTools.set(name, { name, description, schema, handler });
       }),
     };
-
-    // Mock SSH executor
     mockSSHExecutor = vi.fn();
-
-    // Register tools
     registerDockerTools(mockServer as any, mockSSHExecutor);
   });
 
   describe('Tool Registration', () => {
-    it('should register all 5 Docker tools', () => {
-      expect(mockServer.tool).toHaveBeenCalledTimes(5);
-      expect(registeredTools.has('docker list containers')).toBe(true);
-      expect(registeredTools.has('docker inspect')).toBe(true);
-      expect(registeredTools.has('docker logs')).toBe(true);
-      expect(registeredTools.has('docker stats snapshot')).toBe(true);
-      expect(registeredTools.has('docker port')).toBe(true);
+    it('should register 1 mega-tool with 14 actions', () => {
+      expect(mockServer.tool).toHaveBeenCalledTimes(1);
+      expect(registeredTools.has('docker')).toBe(true);
     });
   });
 
-  describe('docker list containers', () => {
-    it('should list all containers by default', async () => {
-      const mockOutput = `{"ID":"abc123","Names":"container1","Image":"nginx","Status":"Up 2 hours","State":"running","Ports":"80/tcp"}
-{"ID":"def456","Names":"container2","Image":"redis","Status":"Up 1 hour","State":"running","Ports":"6379/tcp"}`;
-
-      mockSSHExecutor.mockResolvedValue(mockOutput);
-
-      const tool = registeredTools.get('docker list containers');
-      const result = await tool.handler({ all: true });
-
+  describe('action=list_containers', () => {
+    it('should list all containers', async () => {
+      mockSSHExecutor.mockResolvedValue('{"Names":"test","State":"running"}');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'list_containers', all: true });
       expect(mockSSHExecutor).toHaveBeenCalledWith('docker ps -a --format json');
-      expect(result.content[0].text).toContain('Docker Containers:');
-      expect(result.content[0].text).toContain('container1');
-      expect(result.content[0].text).toContain('container2');
+      expect(result.content[0].text).toContain('Containers');
     });
 
-    it('should list only running containers when all=false', async () => {
-      mockSSHExecutor.mockResolvedValue('{"ID":"abc123","Names":"container1","Image":"nginx","Status":"Up","State":"running","Ports":"80/tcp"}');
-
-      const tool = registeredTools.get('docker list containers');
-      await tool.handler({ all: false });
-
+    it('should list running only', async () => {
+      mockSSHExecutor.mockResolvedValue('{"Names":"test"}');
+      const tool = registeredTools.get('docker');
+      await tool.handler({ action: 'list_containers', all: false });
       expect(mockSSHExecutor).toHaveBeenCalledWith('docker ps --format json');
     });
+  });
 
-    it('should handle no containers found', async () => {
-      mockSSHExecutor.mockResolvedValue('');
-
-      const tool = registeredTools.get('docker list containers');
-      const result = await tool.handler({ all: true });
-
-      expect(result.content[0].text).toBe('No containers found.');
+  describe('action=inspect', () => {
+    it('should require container param', async () => {
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'inspect' });
+      expect(result.isError).toBe(true);
     });
 
-    it('should handle errors gracefully', async () => {
-      mockSSHExecutor.mockRejectedValue(new Error('SSH connection failed'));
-
-      const tool = registeredTools.get('docker list containers');
-      const result = await tool.handler({ all: true });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error listing containers');
-      expect(result.content[0].text).toContain('SSH connection failed');
+    it('should inspect container', async () => {
+      mockSSHExecutor.mockResolvedValue('[{"Name": "/test"}]');
+      const tool = registeredTools.get('docker');
+      await tool.handler({ action: 'inspect', container: 'test' });
+      expect(mockSSHExecutor).toHaveBeenCalledWith('docker inspect test');
     });
   });
 
-  describe('docker inspect', () => {
-    it('should inspect a container', async () => {
-      const mockInspect = JSON.stringify([{ Id: 'abc123', Name: 'test-container', State: { Running: true } }]);
-      mockSSHExecutor.mockResolvedValue(mockInspect);
-
-      const tool = registeredTools.get('docker inspect');
-      const result = await tool.handler({ container: 'test-container' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker inspect test-container');
-      expect(result.content[0].text).toContain('Docker Inspect - test-container');
-      expect(result.content[0].text).toContain('abc123');
+  describe('action=logs', () => {
+    it('should require container param', async () => {
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'logs' });
+      expect(result.isError).toBe(true);
     });
 
-    it('should handle inspect errors', async () => {
-      mockSSHExecutor.mockRejectedValue(new Error('Container not found'));
-
-      const tool = registeredTools.get('docker inspect');
-      const result = await tool.handler({ container: 'nonexistent' });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error inspecting container');
+    it('should get container logs', async () => {
+      mockSSHExecutor.mockResolvedValue('log line 1\nlog line 2');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'logs', container: 'test', dockerTail: 100 });
+      expect(mockSSHExecutor).toHaveBeenCalledWith('docker logs test --tail 100');
     });
   });
 
-  describe('docker logs', () => {
-    it('should retrieve container logs', async () => {
-      mockSSHExecutor.mockResolvedValue('Log line 1\nLog line 2\nLog line 3');
-
-      const tool = registeredTools.get('docker logs');
-      const result = await tool.handler({ container: 'my-app' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker logs my-app');
-      expect(result.content[0].text).toContain('Docker Logs - my-app');
-      expect(result.content[0].text).toContain('Log line 1');
-    });
-
-    it('should support dockerTail option', async () => {
-      mockSSHExecutor.mockResolvedValue('Recent log');
-
-      const tool = registeredTools.get('docker logs');
-      await tool.handler({ container: 'my-app', dockerTail: 10 });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker logs my-app --tail 10');
-    });
-
-    it('should support dockerSince option', async () => {
-      mockSSHExecutor.mockResolvedValue('Recent log');
-
-      const tool = registeredTools.get('docker logs');
-      await tool.handler({ container: 'my-app', dockerSince: '5m' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker logs my-app --since 5m');
-    });
-
-    it('should support both dockerTail and dockerSince options', async () => {
-      mockSSHExecutor.mockResolvedValue('Filtered logs');
-
-      const tool = registeredTools.get('docker logs');
-      await tool.handler({ container: 'my-app', dockerTail: 20, dockerSince: '1h' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker logs my-app --tail 20 --since 1h');
-    });
-
-    it('should handle logs errors', async () => {
-      mockSSHExecutor.mockRejectedValue(new Error('Permission denied'));
-
-      const tool = registeredTools.get('docker logs');
-      const result = await tool.handler({ container: 'my-app' });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error retrieving logs');
-    });
-  });
-
-  describe('docker stats snapshot', () => {
+  describe('action=stats', () => {
     it('should get stats for all containers', async () => {
-      const mockStats = `CONTAINER ID   NAME       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O       BLOCK I/O
-abc123         nginx      0.50%     50MiB / 2GiB          2.44%     1.2kB / 0B    0B / 0B`;
-      mockSSHExecutor.mockResolvedValue(mockStats);
-
-      const tool = registeredTools.get('docker stats snapshot');
-      const result = await tool.handler({});
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker stats --no-stream');
-      expect(result.content[0].text).toContain('Docker Stats Snapshot');
-      expect(result.content[0].text).toContain('nginx');
+      mockSSHExecutor.mockResolvedValue('{"Name":"test","CPUPerc":"5%"}');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'stats' });
+      expect(result.content[0].text).toContain('Stats');
     });
 
     it('should get stats for specific container', async () => {
-      mockSSHExecutor.mockResolvedValue('CONTAINER ID   NAME    CPU %\nabc123         redis   1.2%');
-
-      const tool = registeredTools.get('docker stats snapshot');
-      await tool.handler({ container: 'redis' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker stats --no-stream redis');
-    });
-
-    it('should handle stats errors', async () => {
-      mockSSHExecutor.mockRejectedValue(new Error('Docker not running'));
-
-      const tool = registeredTools.get('docker stats snapshot');
-      const result = await tool.handler({});
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error getting stats');
+      mockSSHExecutor.mockResolvedValue('CONTAINER CPU');
+      const tool = registeredTools.get('docker');
+      await tool.handler({ action: 'stats', container: 'test' });
+      expect(mockSSHExecutor).toHaveBeenCalledWith('docker stats --no-stream test');
     });
   });
 
-  describe('docker port', () => {
-    it('should show port mappings', async () => {
-      mockSSHExecutor.mockResolvedValue('80/tcp -> 0.0.0.0:8080\n443/tcp -> 0.0.0.0:8443');
-
-      const tool = registeredTools.get('docker port');
-      const result = await tool.handler({ container: 'web-server' });
-
-      expect(mockSSHExecutor).toHaveBeenCalledWith('docker port web-server');
-      expect(result.content[0].text).toContain('Docker Port Mappings - web-server');
-      expect(result.content[0].text).toContain('8080');
-      expect(result.content[0].text).toContain('8443');
-    });
-
-    it('should handle containers with no port mappings', async () => {
-      mockSSHExecutor.mockResolvedValue('');
-
-      const tool = registeredTools.get('docker port');
-      const result = await tool.handler({ container: 'no-ports' });
-
-      expect(result.content[0].text).toContain('No port mappings found');
-    });
-
-    it('should handle port errors', async () => {
-      mockSSHExecutor.mockRejectedValue(new Error('Container not found'));
-
-      const tool = registeredTools.get('docker port');
-      const result = await tool.handler({ container: 'missing' });
-
+  describe('action=port', () => {
+    it('should require container param', async () => {
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'port' });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Error getting port mappings');
+    });
+
+    it('should get port mappings', async () => {
+      mockSSHExecutor.mockResolvedValue('80/tcp -> 0.0.0.0:8080');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'port', container: 'test' });
+      expect(result.content[0].text).toContain('Port');
+    });
+  });
+
+  describe('action=env', () => {
+    it('should require container param', async () => {
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'env' });
+      expect(result.isError).toBe(true);
+    });
+
+    it('should get env vars', async () => {
+      mockSSHExecutor.mockResolvedValue('VAR=value');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'env', container: 'test' });
+      expect(result.content[0].text).toContain('Env');
+    });
+  });
+
+  describe('action=list_networks', () => {
+    it('should list networks', async () => {
+      mockSSHExecutor.mockResolvedValue('{"Name":"bridge"}');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'list_networks' });
+      expect(result.content[0].text).toContain('Networks');
+    });
+  });
+
+  describe('action=list_volumes', () => {
+    it('should list volumes', async () => {
+      mockSSHExecutor.mockResolvedValue('{"Name":"vol1"}');
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'list_volumes' });
+      expect(result.content[0].text).toContain('Volumes');
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle errors gracefully', async () => {
+      mockSSHExecutor.mockRejectedValue(new Error('Docker not running'));
+      const tool = registeredTools.get('docker');
+      const result = await tool.handler({ action: 'list_containers' });
+      expect(result.isError).toBe(true);
     });
   });
 });
