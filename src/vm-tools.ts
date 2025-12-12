@@ -2,205 +2,73 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { applyFilters, outputFiltersSchema } from "./filters.js";
 
-/**
- * SSH executor function type that executes commands on remote host
- */
 type SSHExecutor = (command: string) => Promise<string>;
 
-/**
- * Register all VM management tools with the MCP server
- */
+const vmActions = ["list", "info", "vnc", "logs"] as const;
+
 export function registerVMTools(
   server: McpServer,
   sshExecutor: SSHExecutor
 ): void {
-  // Tool 1: vm list - List VMs with status
   server.tool(
-    "vm list",
-    "List VMs with status (running, shut off, paused).",
+    "vm",
+    "VM ops.",
     {
+      action: z.enum(vmActions).describe("Action"),
+      vm: z.string().optional().describe("VM name"),
+      lines: z.number().optional().default(100).describe("Lines"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
       try {
-        let command = "virsh list --all";
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Virtual Machines:\n\n${output}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error listing VMs: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 2: vm info - VM resource allocation and config
-  server.tool(
-    "vm info",
-    "Get VM details (CPU, memory, state, autostart).",
-    {
-      vm: z.string().describe("VM name"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let command = `virsh dominfo ${args.vm}`;
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `VM Info - ${args.vm}:\n\n${output}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error getting VM info: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 3: vm vnc info - VNC connection details
-  server.tool(
-    "vm vnc info",
-    "Get VNC connection info for a VM.",
-    {
-      vm: z.string().describe("VM name"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        // Try to get VNC display using virsh vncdisplay
-        let command = `virsh vncdisplay ${args.vm}`;
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        const result = output.trim();
-
-        if (!result) {
-          // If no VNC display, try to parse VM XML for graphics info
-          const xmlCommand = `virsh dumpxml ${args.vm} | grep -A 5 "<graphics"`;
-          try {
-            const xmlOutput = await sshExecutor(xmlCommand);
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `VNC Info - ${args.vm}:\n\nNo VNC display active. Graphics configuration:\n${xmlOutput}`,
-                },
-              ],
-            };
-          } catch {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `VNC Info - ${args.vm}:\n\nNo VNC display configured or VM is not running.`,
-                },
-              ],
-            };
+        switch (args.action) {
+          case "list": {
+            let cmd = applyFilters("virsh list --all", args);
+            const output = await sshExecutor(cmd);
+            return { content: [{ type: "text", text: `VMs:\n\n${output}` }] };
           }
-        }
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: `VNC Info - ${args.vm}:\n\nVNC Display: ${result}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error getting VNC info: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
+          case "info": {
+            if (!args.vm) return { content: [{ type: "text", text: "Error: vm required" }], isError: true };
+            let cmd = applyFilters(`virsh dominfo ${args.vm}`, args);
+            const output = await sshExecutor(cmd);
+            return { content: [{ type: "text", text: `VM Info - ${args.vm}:\n\n${output}` }] };
+          }
 
-  // Tool 4: vm libvirt logs - Read libvirt logs
-  server.tool(
-    "vm libvirt logs",
-    "Read libvirt/QEMU logs for VMs.",
-    {
-      vm: z.string().optional().describe("VM name (all if not specified)"),
-      lines: z.number().optional().default(100).describe("Log lines (default: 100)"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        const lines = args.lines ?? 100;
+          case "vnc": {
+            if (!args.vm) return { content: [{ type: "text", text: "Error: vm required" }], isError: true };
+            let cmd = applyFilters(`virsh vncdisplay ${args.vm}`, args);
+            const output = await sshExecutor(cmd);
+            const result = output.trim();
+            if (!result) {
+              try {
+                const xmlOutput = await sshExecutor(`virsh dumpxml ${args.vm} | grep -A 5 "<graphics"`);
+                return { content: [{ type: "text", text: `VNC - ${args.vm}:\n\nNo VNC active. Config:\n${xmlOutput}` }] };
+              } catch {
+                return { content: [{ type: "text", text: `VNC - ${args.vm}:\n\nNo VNC configured or VM not running.` }] };
+              }
+            }
+            return { content: [{ type: "text", text: `VNC - ${args.vm}:\n\nDisplay: ${result}` }] };
+          }
 
-        if (args.vm) {
-          // Show logs for specific VM
-          let command = `tail -n ${lines} /var/log/libvirt/qemu/${args.vm}.log`;
-          command = applyFilters(command, args);
-          const output = await sshExecutor(command);
+          case "logs": {
+            const lines = args.lines ?? 100;
+            if (args.vm) {
+              let cmd = applyFilters(`tail -n ${lines} /var/log/libvirt/qemu/${args.vm}.log`, args);
+              const output = await sshExecutor(cmd);
+              return { content: [{ type: "text", text: `Logs - ${args.vm} (${lines} lines):\n\n${output}` }] };
+            } else {
+              let cmd = applyFilters("ls -lh /var/log/libvirt/qemu/*.log 2>/dev/null || echo 'No logs'", args);
+              const output = await sshExecutor(cmd);
+              return { content: [{ type: "text", text: `Log Files:\n\n${output}` }] };
+            }
+          }
 
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Libvirt Logs - ${args.vm} (last ${lines} lines):\n\n${output}`,
-              },
-            ],
-          };
-        } else {
-          // List all available log files
-          let listCommand = "ls -lh /var/log/libvirt/qemu/*.log 2>/dev/null || echo 'No log files found'";
-          listCommand = applyFilters(listCommand, args);
-          const output = await sshExecutor(listCommand);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Available Libvirt Log Files:\n\n${output}\n\nTo view logs for a specific VM, use the 'vm' parameter.`,
-              },
-            ],
-          };
+          default:
+            return { content: [{ type: "text", text: `Unknown action: ${args.action}` }], isError: true };
         }
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error reading libvirt logs: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return { content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
       }
     }
   );

@@ -1,791 +1,222 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { applyFilters, outputFiltersSchema } from "./filters.js";
+import { applyFilters, applyFiltersToText, outputFiltersSchema } from "./filters.js";
 
-/**
- * SSH executor function type that executes commands on remote host
- */
 type SSHExecutor = (command: string) => Promise<string>;
 
-/**
- * Interface for container network information
- */
-interface ContainerNetwork {
-  name: string;
-  ipAddress: string;
-  gateway: string;
-  macAddress: string;
-}
-
-/**
- * Interface for container information
- */
+interface ContainerNetwork { name: string; ipAddress: string; gateway: string; macAddress: string; }
 interface ContainerInfo {
-  id: string;
-  name: string;
-  networks: ContainerNetwork[];
-  volumes: string[];
-  dependsOn: string[];
-  links: string[];
-  networkMode: string;
+  id: string; name: string; networks: ContainerNetwork[]; volumes: string[];
+  dependsOn: string[]; links: string[]; networkMode: string;
   ports: Array<{ container: string; host: string; protocol: string }>;
 }
 
-/**
- * Parse docker inspect output to extract container information
- */
 function parseContainerInspect(inspectData: any[]): ContainerInfo[] {
-  return inspectData.map((container) => {
+  return inspectData.map((c) => {
     const networks: ContainerNetwork[] = [];
-
-    if (container.NetworkSettings?.Networks) {
-      for (const [networkName, networkInfo] of Object.entries(container.NetworkSettings.Networks)) {
-        const info = networkInfo as any;
-        networks.push({
-          name: networkName,
-          ipAddress: info.IPAddress || "N/A",
-          gateway: info.Gateway || "N/A",
-          macAddress: info.MacAddress || "N/A",
-        });
+    if (c.NetworkSettings?.Networks) {
+      for (const [name, info] of Object.entries(c.NetworkSettings.Networks)) {
+        const i = info as any;
+        networks.push({ name, ipAddress: i.IPAddress || "N/A", gateway: i.Gateway || "N/A", macAddress: i.MacAddress || "N/A" });
       }
     }
-
     const volumes: string[] = [];
-    if (container.Mounts) {
-      for (const mount of container.Mounts) {
-        if (mount.Type === "volume") {
-          volumes.push(mount.Name || mount.Source);
-        } else if (mount.Type === "bind") {
-          volumes.push(mount.Source);
-        }
+    if (c.Mounts) {
+      for (const m of c.Mounts) {
+        volumes.push(m.Type === "volume" ? (m.Name || m.Source) : m.Source);
       }
     }
-
     const dependsOn: string[] = [];
-    if (container.Config?.Labels?.["com.docker.compose.depends_on"]) {
-      try {
-        const deps = JSON.parse(container.Config.Labels["com.docker.compose.depends_on"]);
-        dependsOn.push(...Object.keys(deps));
-      } catch {
-        // Ignore parse errors
-      }
+    if (c.Config?.Labels?.["com.docker.compose.depends_on"]) {
+      try { dependsOn.push(...Object.keys(JSON.parse(c.Config.Labels["com.docker.compose.depends_on"]))); } catch {}
     }
-
-    const links: string[] = [];
-    if (container.HostConfig?.Links) {
-      links.push(...container.HostConfig.Links.map((link: string) => link.split(":")[0]));
-    }
-
-    const networkMode = container.HostConfig?.NetworkMode || "default";
-
+    const links: string[] = c.HostConfig?.Links?.map((l: string) => l.split(":")[0]) || [];
     const ports: Array<{ container: string; host: string; protocol: string }> = [];
-    if (container.NetworkSettings?.Ports) {
-      for (const [containerPort, hostBindings] of Object.entries(container.NetworkSettings.Ports)) {
-        if (hostBindings && Array.isArray(hostBindings)) {
-          for (const binding of hostBindings) {
-            const b = binding as any;
-            ports.push({
-              container: containerPort,
-              host: `${b.HostIp || "0.0.0.0"}:${b.HostPort}`,
-              protocol: containerPort.split("/")[1] || "tcp",
-            });
+    if (c.NetworkSettings?.Ports) {
+      for (const [cp, bindings] of Object.entries(c.NetworkSettings.Ports)) {
+        if (bindings && Array.isArray(bindings)) {
+          for (const b of bindings) {
+            ports.push({ container: cp, host: `${(b as any).HostIp || "0.0.0.0"}:${(b as any).HostPort}`, protocol: cp.split("/")[1] || "tcp" });
           }
         } else {
-          // Port exposed but not mapped
-          ports.push({
-            container: containerPort,
-            host: "not mapped",
-            protocol: containerPort.split("/")[1] || "tcp",
-          });
+          ports.push({ container: cp, host: "not mapped", protocol: cp.split("/")[1] || "tcp" });
         }
       }
     }
-
-    return {
-      id: container.Id.substring(0, 12),
-      name: container.Name.startsWith("/") ? container.Name.substring(1) : container.Name,
-      networks,
-      volumes,
-      dependsOn,
-      links,
-      networkMode,
-      ports,
-    };
+    return { id: c.Id.substring(0, 12), name: c.Name.startsWith("/") ? c.Name.substring(1) : c.Name, networks, volumes, dependsOn, links, networkMode: c.HostConfig?.NetworkMode || "default", ports };
   });
 }
 
-/**
- * Register all container topology and analysis tools with the MCP server
- */
-export function registerContainerTopologyTools(
-  server: McpServer,
-  sshExecutor: SSHExecutor
-): void {
-  // Tool 1: container network topology - Network connectivity map
+const topologyActions = ["network_topology", "volume_sharing", "dependency_graph", "port_conflicts", "network_test"] as const;
+
+export function registerContainerTopologyTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
-    "container network topology",
-    "Map containers to networks with IPs and connectivity.",
+    "container_topology",
+    "Container topology ops.",
     {
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let command = "docker inspect $(docker ps -q)";
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        if (!output.trim()) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No running containers found.",
-              },
-            ],
-          };
-        }
-
-        const inspectData = JSON.parse(output);
-        const containers = parseContainerInspect(Array.isArray(inspectData) ? inspectData : [inspectData]);
-
-        // Group containers by network
-        const networkMap = new Map<string, ContainerInfo[]>();
-
-        for (const container of containers) {
-          for (const network of container.networks) {
-            if (!networkMap.has(network.name)) {
-              networkMap.set(network.name, []);
-            }
-            networkMap.get(network.name)!.push(container);
-          }
-        }
-
-        let result = "Container Network Topology\n";
-        result += "=".repeat(60) + "\n\n";
-
-        for (const [networkName, networkContainers] of networkMap.entries()) {
-          result += `Network: ${networkName}\n`;
-          result += "-".repeat(60) + "\n";
-
-          for (const container of networkContainers) {
-            const network = container.networks.find((n) => n.name === networkName)!;
-            result += `  Container: ${container.name} (${container.id})\n`;
-            result += `    IP Address: ${network.ipAddress}\n`;
-            result += `    Gateway: ${network.gateway}\n`;
-            result += `    MAC Address: ${network.macAddress}\n`;
-            result += `    Network Mode: ${container.networkMode}\n`;
-            result += "\n";
-          }
-          result += "\n";
-        }
-
-        // Show containers not on any network
-        const containersWithoutNetwork = containers.filter((c) => c.networks.length === 0);
-        if (containersWithoutNetwork.length > 0) {
-          result += "Containers without network:\n";
-          result += "-".repeat(60) + "\n";
-          for (const container of containersWithoutNetwork) {
-            result += `  ${container.name} (${container.id})\n`;
-            result += `    Network Mode: ${container.networkMode}\n`;
-          }
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error analyzing network topology: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 2: container volume sharing - Shared volumes analysis
-  server.tool(
-    "container volume sharing",
-    "Find volumes shared between containers.",
-    {
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let command = "docker inspect $(docker ps -aq)";
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        if (!output.trim()) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No containers found.",
-              },
-            ],
-          };
-        }
-
-        const inspectData = JSON.parse(output);
-        const containers = parseContainerInspect(Array.isArray(inspectData) ? inspectData : [inspectData]);
-
-        // Group containers by shared volumes
-        const volumeMap = new Map<string, ContainerInfo[]>();
-
-        for (const container of containers) {
-          for (const volume of container.volumes) {
-            if (!volumeMap.has(volume)) {
-              volumeMap.set(volume, []);
-            }
-            volumeMap.get(volume)!.push(container);
-          }
-        }
-
-        let result = "Container Volume Sharing Analysis\n";
-        result += "=".repeat(60) + "\n\n";
-
-        // Show only shared volumes (used by 2+ containers)
-        const sharedVolumes = Array.from(volumeMap.entries()).filter(([_, containers]) => containers.length > 1);
-
-        if (sharedVolumes.length === 0) {
-          result += "No shared volumes found.\n\n";
-        } else {
-          result += `Shared Volumes (${sharedVolumes.length}):\n`;
-          result += "-".repeat(60) + "\n\n";
-
-          for (const [volume, volumeContainers] of sharedVolumes) {
-            result += `Volume: ${volume}\n`;
-            result += `  Shared by ${volumeContainers.length} containers:\n`;
-            for (const container of volumeContainers) {
-              result += `    - ${container.name} (${container.id})\n`;
-            }
-            result += "\n";
-          }
-        }
-
-        // Show all volume usage
-        result += "\nAll Volume Usage:\n";
-        result += "-".repeat(60) + "\n\n";
-
-        for (const [volume, volumeContainers] of volumeMap.entries()) {
-          result += `Volume: ${volume}\n`;
-          result += `  Used by ${volumeContainers.length} container(s):\n`;
-          for (const container of volumeContainers) {
-            result += `    - ${container.name} (${container.id})\n`;
-          }
-          result += "\n";
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error analyzing volume sharing: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 3: container dependency graph - Dependency relationships
-  server.tool(
-    "container dependency graph",
-    "Show container dependencies (depends_on, links, network_mode).",
-    {
-      container: z.string().optional().describe("Container to focus on"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let command = "docker inspect $(docker ps -aq)";
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        if (!output.trim()) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No containers found.",
-              },
-            ],
-          };
-        }
-
-        const inspectData = JSON.parse(output);
-        const containers = parseContainerInspect(Array.isArray(inspectData) ? inspectData : [inspectData]);
-
-        let result = "Container Dependency Graph\n";
-        result += "=".repeat(60) + "\n\n";
-
-        // Filter by container if specified
-        const containersToShow = args.container
-          ? containers.filter((c) => c.name === args.container || c.id === args.container)
-          : containers;
-
-        if (containersToShow.length === 0) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Container "${args.container}" not found.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        for (const container of containersToShow) {
-          result += `Container: ${container.name} (${container.id})\n`;
-          result += "-".repeat(60) + "\n";
-
-          // Check if this container depends on others
-          if (container.dependsOn.length > 0) {
-            result += `  Depends on:\n`;
-            for (const dep of container.dependsOn) {
-              result += `    - ${dep}\n`;
-            }
-          }
-
-          if (container.links.length > 0) {
-            result += `  Links to:\n`;
-            for (const link of container.links) {
-              result += `    - ${link}\n`;
-            }
-          }
-
-          // Check if network mode references another container
-          if (container.networkMode.startsWith("container:")) {
-            const targetContainer = container.networkMode.substring(10);
-            result += `  Uses network of:\n`;
-            result += `    - ${targetContainer}\n`;
-          }
-
-          // Check which containers depend on this one
-          const dependents = containers.filter(
-            (c) =>
-              c.dependsOn.includes(container.name) ||
-              c.links.includes(container.name) ||
-              c.networkMode === `container:${container.id}` ||
-              c.networkMode === `container:${container.name}`
-          );
-
-          if (dependents.length > 0) {
-            result += `  Depended on by:\n`;
-            for (const dep of dependents) {
-              result += `    - ${dep.name} (${dep.id})\n`;
-            }
-          }
-
-          if (
-            container.dependsOn.length === 0 &&
-            container.links.length === 0 &&
-            !container.networkMode.startsWith("container:") &&
-            dependents.length === 0
-          ) {
-            result += `  No dependencies found\n`;
-          }
-
-          result += "\n";
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error analyzing dependencies: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 4: container port conflict check - Identify port conflicts
-  server.tool(
-    "container port conflict check",
-    "Find duplicate/conflicting port mappings.",
-    {
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let command = "docker inspect $(docker ps -aq)";
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        if (!output.trim()) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No containers found.",
-              },
-            ],
-          };
-        }
-
-        const inspectData = JSON.parse(output);
-        const containers = parseContainerInspect(Array.isArray(inspectData) ? inspectData : [inspectData]);
-
-        let result = "Port Conflict Analysis\n";
-        result += "=".repeat(60) + "\n\n";
-
-        // Map of host ports to containers
-        const hostPortMap = new Map<string, Array<{ container: string; containerPort: string }>>();
-
-        for (const container of containers) {
-          for (const port of container.ports) {
-            if (port.host !== "not mapped") {
-              if (!hostPortMap.has(port.host)) {
-                hostPortMap.set(port.host, []);
-              }
-              hostPortMap.get(port.host)!.push({
-                container: container.name,
-                containerPort: port.container,
-              });
-            }
-          }
-        }
-
-        // Find conflicts (same host port used by multiple containers)
-        const conflicts = Array.from(hostPortMap.entries()).filter(([_, containers]) => containers.length > 1);
-
-        if (conflicts.length === 0) {
-          result += "No port conflicts detected.\n\n";
-        } else {
-          result += `CONFLICTS DETECTED (${conflicts.length}):\n`;
-          result += "-".repeat(60) + "\n\n";
-
-          for (const [hostPort, portContainers] of conflicts) {
-            result += `Host Port: ${hostPort}\n`;
-            result += `  Conflict between:\n`;
-            for (const { container, containerPort } of portContainers) {
-              result += `    - ${container} (container port: ${containerPort})\n`;
-            }
-            result += "\n";
-          }
-        }
-
-        // Show all port mappings
-        result += "All Port Mappings:\n";
-        result += "-".repeat(60) + "\n\n";
-
-        for (const container of containers) {
-          if (container.ports.length > 0) {
-            result += `Container: ${container.name}\n`;
-            for (const port of container.ports) {
-              result += `  ${port.host} -> ${port.container} (${port.protocol})\n`;
-            }
-            result += "\n";
-          }
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error checking port conflicts: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 5: container communication test - Test container connectivity
-  server.tool(
-    "container communication test",
-    "Test network connectivity between containers (ping or netcat).",
-    {
-      fromContainer: z.string().describe("Source container"),
-      toContainer: z.string().describe("Target container"),
-      port: z.number().optional().describe("Port (netcat if set, else ping)"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let result = `Container Communication Test\n`;
-        result += "=".repeat(60) + "\n\n";
-        result += `From: ${args.fromContainer}\n`;
-        result += `To: ${args.toContainer}\n`;
-
-        if (args.port) {
-          result += `Port: ${args.port}\n\n`;
-
-          // Test with netcat (nc)
-          let command = `docker exec ${args.fromContainer} sh -c "command -v nc >/dev/null 2>&1 && nc -zv ${args.toContainer} ${args.port} 2>&1 || echo 'netcat not available in container'"`;
-          command = applyFilters(command, args);
-          const output = await sshExecutor(command);
-
-          result += "Netcat Test Result:\n";
-          result += "-".repeat(60) + "\n";
-          result += output;
-
-          if (output.includes("succeeded") || output.includes("open")) {
-            result += "\n\nStatus: SUCCESS - Port is reachable\n";
-          } else if (output.includes("not available")) {
-            result += "\n\nStatus: UNKNOWN - netcat not available in source container\n";
-            result += "Try installing netcat or use ping test (omit port parameter)\n";
-          } else {
-            result += "\n\nStatus: FAILED - Port is not reachable\n";
-          }
-        } else {
-          result += "\n";
-
-          // Test with ping
-          let command = `docker exec ${args.fromContainer} ping -c 4 ${args.toContainer}`;
-          command = applyFilters(command, args);
-          const output = await sshExecutor(command);
-
-          result += "Ping Test Result:\n";
-          result += "-".repeat(60) + "\n";
-          result += output;
-
-          if (output.includes("4 packets transmitted, 4 received")) {
-            result += "\n\nStatus: SUCCESS - Container is reachable\n";
-          } else if (output.includes("0 packets transmitted") || output.includes("0 received")) {
-            result += "\n\nStatus: FAILED - Container is not reachable\n";
-          } else {
-            result += "\n\nStatus: PARTIAL - Some packets lost\n";
-          }
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error testing communication: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 6: container dns test - DNS resolution testing
-  server.tool(
-    "container dns test",
-    "Test DNS resolution (nslookup/dig).",
-    {
-      hostname: z.string().describe("Hostname to resolve"),
+      action: z.enum(topologyActions).describe("Action"),
+      container: z.string().optional().describe("Container"),
+      type: z.enum(["ping", "dns", "traceroute", "container"]).optional().describe("Test type"),
+      host: z.string().optional().describe("Target host"),
+      fromContainer: z.string().optional().describe("Source container"),
+      port: z.number().optional().describe("Port"),
       dnsServer: z.string().optional().describe("DNS server"),
+      count: z.number().optional().default(4).describe("Ping count"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
       try {
-        let result = `DNS Resolution Test\n`;
-        result += "=".repeat(60) + "\n\n";
-        result += `Hostname: ${args.hostname}\n`;
-
-        if (args.dnsServer) {
-          result += `DNS Server: ${args.dnsServer}\n`;
-        }
-        result += "\n";
-
-        // Try nslookup first
-        let command = args.dnsServer
-          ? `nslookup ${args.hostname} ${args.dnsServer}`
-          : `nslookup ${args.hostname}`;
-        command = applyFilters(command, args);
-
-        try {
-          const output = await sshExecutor(command);
-          result += "nslookup Result:\n";
-          result += "-".repeat(60) + "\n";
-          result += output + "\n";
-        } catch (nslookupError) {
-          // Try dig if nslookup fails
-          command = args.dnsServer
-            ? `dig @${args.dnsServer} ${args.hostname}`
-            : `dig ${args.hostname}`;
-
-          try {
-            const output = await sshExecutor(command);
-            result += "dig Result:\n";
-            result += "-".repeat(60) + "\n";
-            result += output + "\n";
-          } catch (digError) {
-            result += "Error: Both nslookup and dig failed.\n";
-            result += `nslookup error: ${nslookupError instanceof Error ? nslookupError.message : String(nslookupError)}\n`;
-            result += `dig error: ${digError instanceof Error ? digError.message : String(digError)}\n`;
+        switch (args.action) {
+          case "network_topology": {
+            const output = await sshExecutor("docker inspect $(docker ps -q)");
+            if (!output.trim()) return { content: [{ type: "text", text: "No running containers." }] };
+            const containers = parseContainerInspect(JSON.parse(output));
+            const networkMap = new Map<string, ContainerInfo[]>();
+            for (const c of containers) {
+              for (const n of c.networks) {
+                if (!networkMap.has(n.name)) networkMap.set(n.name, []);
+                networkMap.get(n.name)!.push(c);
+              }
+            }
+            let result = "Network Topology\n" + "=".repeat(60) + "\n\n";
+            for (const [name, conts] of networkMap.entries()) {
+              result += `Network: ${name}\n` + "-".repeat(60) + "\n";
+              for (const c of conts) {
+                const n = c.networks.find(x => x.name === name)!;
+                result += `  ${c.name} (${c.id})\n    IP: ${n.ipAddress}\n    Gateway: ${n.gateway}\n\n`;
+              }
+            }
+            return { content: [{ type: "text", text: applyFiltersToText(result, args) }] };
           }
-        }
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error testing DNS: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 7: container ping test - Connectivity testing
-  server.tool(
-    "container ping test",
-    "Ping a host.",
-    {
-      host: z.string().describe("Host to ping"),
-      count: z.number().optional().default(4).describe("Packet count (default: 4)"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        const count = args.count ?? 4;
-        let command = `ping -c ${count} ${args.host}`;
-        command = applyFilters(command, args);
-        const output = await sshExecutor(command);
-
-        let result = `Ping Test\n`;
-        result += "=".repeat(60) + "\n\n";
-        result += `Host: ${args.host}\n`;
-        result += `Packets: ${count}\n\n`;
-        result += "Result:\n";
-        result += "-".repeat(60) + "\n";
-        result += output;
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error pinging host: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // Tool 8: container traceroute test - Network path tracing
-  server.tool(
-    "container traceroute test",
-    "Trace network path to host.",
-    {
-      host: z.string().describe("Host to trace"),
-      ...outputFiltersSchema.shape,
-    },
-    async (args) => {
-      try {
-        let result = `Traceroute Test\n`;
-        result += "=".repeat(60) + "\n\n";
-        result += `Host: ${args.host}\n\n`;
-
-        // Try traceroute first
-        try {
-          let command = `traceroute ${args.host}`;
-          command = applyFilters(command, args);
-          const output = await sshExecutor(command);
-          result += "traceroute Result:\n";
-          result += "-".repeat(60) + "\n";
-          result += output;
-        } catch (tracerouteError) {
-          // Try tracepath if traceroute fails
-          try {
-            const command = `tracepath ${args.host}`;
-            const output = await sshExecutor(command);
-            result += "tracepath Result:\n";
-            result += "-".repeat(60) + "\n";
-            result += output;
-          } catch (tracepathError) {
-            result += "Error: Both traceroute and tracepath failed.\n";
-            result += `traceroute error: ${tracerouteError instanceof Error ? tracerouteError.message : String(tracerouteError)}\n`;
-            result += `tracepath error: ${tracepathError instanceof Error ? tracepathError.message : String(tracepathError)}\n`;
+          case "volume_sharing": {
+            const output = await sshExecutor("docker inspect $(docker ps -aq)");
+            if (!output.trim()) return { content: [{ type: "text", text: "No containers." }] };
+            const containers = parseContainerInspect(JSON.parse(output));
+            const volumeMap = new Map<string, ContainerInfo[]>();
+            for (const c of containers) {
+              for (const v of c.volumes) {
+                if (!volumeMap.has(v)) volumeMap.set(v, []);
+                volumeMap.get(v)!.push(c);
+              }
+            }
+            const shared = Array.from(volumeMap.entries()).filter(([, cs]) => cs.length > 1);
+            let result = "Volume Sharing\n" + "=".repeat(60) + "\n\n";
+            if (shared.length === 0) result += "No shared volumes.\n";
+            else {
+              result += `Shared Volumes (${shared.length}):\n` + "-".repeat(60) + "\n\n";
+              for (const [v, cs] of shared) {
+                result += `Volume: ${v}\n  Shared by ${cs.length}:\n`;
+                for (const c of cs) result += `    - ${c.name}\n`;
+                result += "\n";
+              }
+            }
+            return { content: [{ type: "text", text: applyFiltersToText(result, args) }] };
           }
-        }
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: result,
-            },
-          ],
-        };
+          case "dependency_graph": {
+            const output = await sshExecutor("docker inspect $(docker ps -aq)");
+            if (!output.trim()) return { content: [{ type: "text", text: "No containers." }] };
+            const containers = parseContainerInspect(JSON.parse(output));
+            const toShow = args.container ? containers.filter(c => c.name === args.container || c.id === args.container) : containers;
+            if (toShow.length === 0) return { content: [{ type: "text", text: `Container "${args.container}" not found.` }], isError: true };
+            let result = "Dependency Graph\n" + "=".repeat(60) + "\n\n";
+            for (const c of toShow) {
+              result += `${c.name} (${c.id})\n` + "-".repeat(60) + "\n";
+              if (c.dependsOn.length) result += `  Depends on: ${c.dependsOn.join(", ")}\n`;
+              if (c.links.length) result += `  Links: ${c.links.join(", ")}\n`;
+              if (c.networkMode.startsWith("container:")) result += `  Uses network of: ${c.networkMode.substring(10)}\n`;
+              const deps = containers.filter(x => x.dependsOn.includes(c.name) || x.links.includes(c.name) || x.networkMode === `container:${c.id}` || x.networkMode === `container:${c.name}`);
+              if (deps.length) result += `  Depended by: ${deps.map(d => d.name).join(", ")}\n`;
+              result += "\n";
+            }
+            return { content: [{ type: "text", text: applyFiltersToText(result, args) }] };
+          }
+
+          case "port_conflicts": {
+            const output = await sshExecutor("docker inspect $(docker ps -aq)");
+            if (!output.trim()) return { content: [{ type: "text", text: "No containers." }] };
+            const containers = parseContainerInspect(JSON.parse(output));
+            const hostPortMap = new Map<string, Array<{ container: string; containerPort: string }>>();
+            for (const c of containers) {
+              for (const p of c.ports) {
+                if (p.host !== "not mapped") {
+                  if (!hostPortMap.has(p.host)) hostPortMap.set(p.host, []);
+                  hostPortMap.get(p.host)!.push({ container: c.name, containerPort: p.container });
+                }
+              }
+            }
+            const conflicts = Array.from(hostPortMap.entries()).filter(([, cs]) => cs.length > 1);
+            let result = "Port Conflicts\n" + "=".repeat(60) + "\n\n";
+            if (conflicts.length === 0) result += "No conflicts.\n";
+            else {
+              result += `CONFLICTS (${conflicts.length}):\n` + "-".repeat(60) + "\n\n";
+              for (const [hp, cs] of conflicts) {
+                result += `Host Port: ${hp}\n  Conflict:\n`;
+                for (const { container, containerPort } of cs) result += `    - ${container} (${containerPort})\n`;
+                result += "\n";
+              }
+            }
+            return { content: [{ type: "text", text: applyFiltersToText(result, args) }] };
+          }
+
+          case "network_test": {
+            if (!args.type || !args.host) return { content: [{ type: "text", text: "Error: type and host required" }], isError: true };
+            let result = "";
+            switch (args.type) {
+              case "ping": {
+                const count = args.count ?? 4;
+                let cmd = applyFilters(`ping -c ${count} ${args.host}`, args);
+                const output = await sshExecutor(cmd);
+                result = `Ping Test\n${"=".repeat(60)}\n\nHost: ${args.host}\n\n${output}`;
+                break;
+              }
+              case "dns": {
+                result = `DNS Test\n${"=".repeat(60)}\n\nHostname: ${args.host}\n`;
+                let cmd = args.dnsServer ? `nslookup ${args.host} ${args.dnsServer}` : `nslookup ${args.host}`;
+                cmd = applyFilters(cmd, args);
+                try {
+                  result += await sshExecutor(cmd);
+                } catch {
+                  cmd = args.dnsServer ? `dig @${args.dnsServer} ${args.host}` : `dig ${args.host}`;
+                  try { result += await sshExecutor(cmd); }
+                  catch { result += "Both nslookup and dig failed.\n"; }
+                }
+                break;
+              }
+              case "traceroute": {
+                result = `Traceroute\n${"=".repeat(60)}\n\nHost: ${args.host}\n\n`;
+                try {
+                  let cmd = applyFilters(`traceroute ${args.host}`, args);
+                  result += await sshExecutor(cmd);
+                } catch {
+                  try { result += await sshExecutor(`tracepath ${args.host}`); }
+                  catch { result += "Both traceroute and tracepath failed.\n"; }
+                }
+                break;
+              }
+              case "container": {
+                if (!args.fromContainer) return { content: [{ type: "text", text: "Error: fromContainer required" }], isError: true };
+                result = `Container Test\n${"=".repeat(60)}\n\nFrom: ${args.fromContainer}\nTo: ${args.host}\n`;
+                if (args.port) {
+                  let cmd = applyFilters(`docker exec ${args.fromContainer} sh -c "command -v nc >/dev/null 2>&1 && nc -zv ${args.host} ${args.port} 2>&1 || echo 'netcat not available'"`, args);
+                  const output = await sshExecutor(cmd);
+                  result += `Port: ${args.port}\n\n${output}`;
+                } else {
+                  let cmd = applyFilters(`docker exec ${args.fromContainer} ping -c 4 ${args.host}`, args);
+                  result += "\n" + await sshExecutor(cmd);
+                }
+                break;
+              }
+            }
+            return { content: [{ type: "text", text: result }] };
+          }
+
+          default:
+            return { content: [{ type: "text", text: `Unknown action: ${args.action}` }], isError: true };
+        }
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error tracing route: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return { content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
       }
     }
   );
