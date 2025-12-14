@@ -12,7 +12,7 @@ export function registerMonitoringTools(
 ): void {
   server.tool(
     "monitoring",
-    "Monitoring ops.",
+    "Monitoring ops. Actions: ps (process list), process_tree (hierarchy), top (batch mode), iostat (disk I/O), network_connections (ss/netstat).",
     {
       action: z.enum(monitoringActions).describe("Action"),
       sortBy: z.enum(["cpu", "memory"]).optional().describe("Sort by"),

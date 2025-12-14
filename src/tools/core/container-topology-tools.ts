@@ -52,7 +52,7 @@ const topologyActions = ["network_topology", "volume_sharing", "dependency_graph
 export function registerContainerTopologyTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "container_topology",
-    "Container topology ops.",
+    "Container topology ops. Actions: network_topology (container-network map), volume_sharing (shared volumes), dependency_graph (container deps), port_conflicts (port clashes), network_test (ping/dns/traceroute).",
     {
       action: z.enum(topologyActions).describe("Action"),
       container: z.string().optional().describe("Container"),

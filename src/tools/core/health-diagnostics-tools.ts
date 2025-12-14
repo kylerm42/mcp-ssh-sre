@@ -12,7 +12,7 @@ const healthActions = ["comprehensive", "common_issues", "threshold_alerts", "co
 export function registerHealthDiagnosticsTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "health",
-    "Health ops.",
+    "Health ops. Actions: comprehensive (full check), common_issues (detect problems), threshold_alerts (metric alerts), compare_baseline (diff from baseline), diagnostic_report (full report), snapshot (save state).",
     {
       action: z.enum(healthActions).describe("Action"),
       cpuThreshold: z.number().min(0).max(100).optional().default(80).describe("CPU %"),

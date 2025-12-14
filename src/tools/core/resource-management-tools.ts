@@ -9,7 +9,7 @@ const resourceActions = ["dangling", "hogs", "disk_analyzer", "docker_df", "zomb
 export function registerResourceManagementTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "resource",
-    "Resource ops.",
+    "Resource ops. Actions: dangling (unused docker resources), hogs (top consumers), disk_analyzer (large files/dirs), docker_df (docker disk usage), zombies (zombie/D-state procs), io_profile (I/O monitoring).",
     {
       action: z.enum(resourceActions).describe("Action"),
       sortBy: z.enum(["cpu", "memory", "io"]).optional().default("cpu").describe("Sort by"),

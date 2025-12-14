@@ -9,7 +9,7 @@ const performanceActions = ["bottleneck", "bandwidth", "track_metric"] as const;
 export function registerPerformanceTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "performance",
-    "Performance ops.",
+    "Performance ops. Actions: bottleneck (CPU/IO analysis), bandwidth (network usage), track_metric (monitor cpu/memory/disk over time).",
     {
       action: z.enum(performanceActions).describe("Action"),
       metric: z.enum(["cpu", "memory", "disk"]).optional().describe("Metric type"),

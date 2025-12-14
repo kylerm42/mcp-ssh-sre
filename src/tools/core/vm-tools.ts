@@ -12,7 +12,7 @@ export function registerVMTools(
 ): void {
   server.tool(
     "vm",
-    "VM ops.",
+    "VM ops. Actions: list (all VMs), info (VM details), vnc (display address), logs (libvirt logs).",
     {
       action: z.enum(vmActions).describe("Action"),
       vm: z.string().optional().describe("VM name"),
