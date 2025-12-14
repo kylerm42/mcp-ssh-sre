@@ -9,7 +9,7 @@ const logActions = ["grep_all", "error_aggregator", "timeline", "parse_docker", 
 export function registerLogAnalysisTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "log",
-    "Log analysis ops.",
+    "Log analysis ops. Actions: grep_all (search syslog+docker), error_aggregator (count errors), timeline (system events), parse_docker (container logs), compare_timerange (diff periods), restart_history (container restarts).",
     {
       action: z.enum(logActions).describe("Action"),
       pattern: z.string().optional().describe("Search pattern"),

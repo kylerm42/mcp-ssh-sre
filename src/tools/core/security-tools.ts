@@ -9,7 +9,7 @@ const securityActions = ["open_ports", "audit_privileges", "ssh_connections", "c
 export function registerSecurityTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "security",
-    "Security ops.",
+    "Security ops. Actions: open_ports (listening ports), audit_privileges (container security), ssh_connections (active/failed logins), cert_expiry (SSL certs).",
     {
       action: z.enum(securityActions).describe("Action"),
       certPath: z.string().optional().describe("Certificate path"),

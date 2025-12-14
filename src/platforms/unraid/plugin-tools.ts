@@ -8,7 +8,7 @@ const pluginActions = ["list", "updates", "template", "scripts", "share_config",
 export function registerUnraidPluginTools(server: McpServer, sshExecutor: SSHExecutor): void {
   server.tool(
     "plugin",
-    "Plugin/config ops.",
+    "Plugin/config ops. Actions: list (installed plugins), updates (available updates), template (docker templates), scripts (user scripts), share_config (share settings), disk_assignments (disk IDs), recent_changes (modified config files).",
     {
       action: z.enum(pluginActions).describe("Action"),
       template: z.string().optional().describe("Template name"),

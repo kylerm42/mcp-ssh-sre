@@ -12,7 +12,7 @@ export function registerSystemTools(
 ): void {
   server.tool(
     "system",
-    "System ops.",
+    "System ops. Actions: list_files (dir listing), read_file (file contents), find_files (pattern search), disk_usage (df), system_info (kernel/uptime/memory).",
     {
       action: z.enum(systemActions).describe("Action"),
       path: z.string().optional().describe("Path"),

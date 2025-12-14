@@ -16,7 +16,7 @@ export function registerDockerTools(
 ): void {
   server.tool(
     "docker",
-    "Docker ops.",
+    "Docker ops. Actions: list_containers, inspect, logs, stats, port, env, top, health, logs_aggregate (search all), list_networks, inspect_network, list_volumes, inspect_volume, network_containers.",
     {
       action: z.enum(dockerActions).describe("Action"),
       container: z.string().optional().describe("Container"),

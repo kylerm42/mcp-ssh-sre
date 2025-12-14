@@ -15,7 +15,7 @@ export function registerUnraidArrayTools(
 ): void {
   server.tool(
     "unraid",
-    "Unraid ops.",
+    "Unraid array/storage ops. Actions: array_status (state), smart (drive diag), temps (all temps), shares (list), share_usage (disk usage), parity_status/parity_history (parity info), sync_status (rebuild), spin_status (spin state), unclean_check (shutdown), mover_status/mover_log (mover), cache_usage, split_level (share cfg).",
     {
       action: z.enum(unraidActions).describe("Action"),
       device: z.string().optional().describe("Device"),
