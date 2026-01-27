@@ -4,78 +4,93 @@
 
 - Linux server with SSH access enabled
 - SSH key pair for passwordless authentication
+- Node.js 18+ (for local development only, not required for npm installation)
 
-## Docker (Recommended)
+## NPM Installation (Recommended)
 
-### HTTP Mode
+The simplest way to use MCP SSH SRE is via npx with Claude Desktop:
 
-Run as a network-accessible service on your server:
+### 1. Create SSH Key
+
+Generate a dedicated SSH key for the MCP server:
 
 ```bash
-docker run -d \
-  -p 3000:3000 \
-  -e SSH_HOST=server.local \
-  -e SSH_PORT=22 \
-  -e SSH_USERNAME=mcp-readonly \
-  -e SSH_KEY_PATH=/keys/id_ed25519 \
-  -e OAUTH_SERVER_URL=https://mcp.example.com \
-  -v ~/.ssh/id_ed25519_mcp:/keys/id_ed25519:ro \
-  ghcr.io/ohare93/mcp-ssh-sre:latest
+ssh-keygen -t ed25519 -f ~/.ssh/id_rsa_mcp -C "mcp-ssh-sre"
 ```
 
-Or with Docker Compose (`docker-compose.http.yml`):
+### 2. Deploy Key to Server
 
-```yaml
-services:
-  mcp-ssh-sre:
-    image: ghcr.io/ohare93/mcp-ssh-sre:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - SSH_HOST=server.local
-      - SSH_PORT=22
-      - SSH_USERNAME=mcp-readonly
-      - SSH_KEY_PATH=/keys/id_ed25519
-      - OAUTH_SERVER_URL=https://mcp.example.com
-    volumes:
-      - ~/.ssh/id_ed25519_mcp:/keys/id_ed25519:ro
+Copy the public key to your server:
+
+```bash
+ssh-copy-id -i ~/.ssh/id_rsa_mcp.pub mcp-readonly@server.local
 ```
 
-#### Environment Variables
+### 3. Configure Claude Desktop
+
+Add to your Claude Desktop configuration file:
+
+**Configuration file location:**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "unraid": {
+      "command": "npx",
+      "args": ["-y", "@kylerm42/mcp-ssh-sre"],
+      "env": {
+        "SSH_HOST": "unraid.local",
+        "SSH_USERNAME": "mcp-readonly",
+        "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp"
+      }
+    }
+  }
+}
+```
+
+### 4. Restart Claude Desktop
+
+After saving the configuration, restart Claude Desktop to load the MCP server.
+
+### SSH Key Path Configuration
+
+The `SSH_PRIVATE_KEY_PATH` environment variable supports:
+
+- **Tilde expansion:** `~/.ssh/id_rsa_mcp` (recommended)
+- **Absolute paths:** `/Users/kyle/.ssh/id_rsa_mcp`
+- **Relative paths:** Not supported, use absolute or tilde paths
+
+**Platform-specific paths:**
+
+| Platform | Example Path |
+|----------|--------------|
+| macOS | `~/.ssh/id_rsa_mcp` |
+| Linux | `~/.ssh/id_rsa_mcp` |
+| Windows | `C:\\Users\\username\\.ssh\\id_rsa_mcp` (absolute path required) |
+
+**Note:** Windows users should use absolute paths as tilde expansion may not work consistently.
+
+### Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SSH_HOST` | Yes | - | Server hostname or IP |
 | `SSH_PORT` | No | 22 | SSH port |
 | `SSH_USERNAME` | Yes | - | SSH username |
-| `SSH_KEY_PATH` | Yes | - | Path to SSH private key (inside container) |
-| `HTTP_PORT` | No | 3000 | HTTP server port |
-| `CORS_ORIGIN` | No | * | CORS origin |
-| `OAUTH_SERVER_URL` | Prod | - | Public URL for OAuth discovery |
-| `REQUIRE_AUTH` | No | true | Require OAuth authentication |
+| `SSH_PRIVATE_KEY_PATH` | Yes* | - | Path to SSH private key |
+| `SSH_PASSWORD` | No | - | SSH password (if not using key) |
+| `COMMAND_TIMEOUT_MS` | No | 15000 | Command timeout (milliseconds) |
+| `MAX_CONSECUTIVE_FAILURES` | No | 3 | Circuit breaker threshold |
 
-#### MCP Client Configuration
+*Either `SSH_PRIVATE_KEY_PATH` or `SSH_PASSWORD` is required.
 
-```json
-{
-  "mcpServers": {
-    "ssh-sre": {
-      "url": "http://your-server:3000/mcp"
-    }
-  }
-}
-```
+## Local Development
 
-### Stdio Mode
-
-For local MCP clients (like Claude Desktop running on the same machine):
-
-```bash
-docker build -t mcp-ssh-sre .
-docker run -d --env-file .env mcp-ssh-sre
-```
-
-## Running Locally
+For contributors working on the codebase:
 
 ### Installation
 
@@ -94,30 +109,37 @@ Create a `.env` file:
 SSH_HOST=server.local
 SSH_PORT=22
 SSH_USERNAME=mcp-readonly
-SSH_KEY_PATH=~/.ssh/id_rsa_mcp
+SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa_mcp
 ```
 
 ### Running
 
 ```bash
 # Stdio mode (for local MCP clients)
-node dist/index.js
-
-# HTTP mode
-node dist/http-server.js
+npm start
 
 # Development mode with auto-reload
 npm run dev
+
+# Run tests
+npm test
 ```
 
-### MCP Client Configuration (Stdio)
+### Claude Desktop Configuration (Local Development)
+
+For testing local changes before publishing:
 
 ```json
 {
   "mcpServers": {
-    "ssh-sre": {
+    "ssh-sre-dev": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-ssh-sre/dist/index.js"]
+      "args": ["/absolute/path/to/mcp-ssh-sre/dist/index.js"],
+      "env": {
+        "SSH_HOST": "server.local",
+        "SSH_USERNAME": "mcp-readonly",
+        "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp"
+      }
     }
   }
 }
@@ -127,63 +149,120 @@ npm run dev
 
 ### Create a Read-Only User
 
+Create a dedicated SSH user with minimal permissions:
+
 ```bash
 # On server as root
 useradd -m -s /bin/bash mcp-readonly
 passwd mcp-readonly
+
+# Add to docker group (if Docker monitoring needed)
 usermod -aG docker mcp-readonly
 ```
+
+**Security recommendations:**
+- Use a dedicated user, not root
+- Disable password login (key authentication only)
+- Consider using SSH `ForceCommand` to restrict commands
+- Monitor SSH logs for unauthorized access attempts
 
 ### Generate and Deploy SSH Key
 
 ```bash
 # On your local machine
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_mcp -C "mcp-ssh-sre"
-ssh-copy-id -i ~/.ssh/id_ed25519_mcp.pub mcp-readonly@server.local
+ssh-keygen -t ed25519 -f ~/.ssh/id_rsa_mcp -C "mcp-ssh-sre"
+
+# Copy public key to server
+ssh-copy-id -i ~/.ssh/id_rsa_mcp.pub mcp-readonly@server.local
+
+# Test connection
+ssh -i ~/.ssh/id_rsa_mcp mcp-readonly@server.local
 ```
 
-## Authentication
+### Restrict SSH Access (Optional)
 
-OAuth authentication is **required by default** (v2.0.0+).
+Add to server's `/etc/ssh/sshd_config`:
 
-| `REQUIRE_AUTH` | Use Case |
-|----------------|----------|
-| `true` (default) | Production - require OAuth token |
-| `false` | Local dev only - allows unauthenticated |
-| `development` | Local dev - logs warnings |
+```
+Match User mcp-readonly
+    PermitRootLogin no
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    AllowTcpForwarding no
+    X11Forwarding no
+```
 
-### OAuth Flow
+Then restart SSH:
+```bash
+systemctl restart sshd
+```
 
-1. Register client:
+## Troubleshooting
+
+### Connection Failures
+
+**Error: "Could not connect to SSH server"**
+
+1. Verify SSH key permissions:
    ```bash
-   curl -X POST http://localhost:3000/register \
-     -H "Content-Type: application/json" \
-     -d '{"client_name": "My Client"}'
+   chmod 600 ~/.ssh/id_rsa_mcp
    ```
 
-2. Get authorization code (visit in browser):
-   ```
-   http://localhost:3000/authorize?client_id=YOUR_ID&redirect_uri=YOUR_REDIRECT&state=xyz&response_type=code
-   ```
-
-3. Exchange for token:
+2. Test SSH connection manually:
    ```bash
-   curl -X POST http://localhost:3000/token \
-     -d grant_type=authorization_code \
-     -d code=YOUR_CODE \
-     -d client_id=YOUR_ID \
-     -d client_secret=YOUR_SECRET
+   ssh -i ~/.ssh/id_rsa_mcp mcp-readonly@server.local
    ```
+
+3. Check server SSH logs:
+   ```bash
+   tail -f /var/log/auth.log  # Debian/Ubuntu
+   tail -f /var/log/secure    # RHEL/CentOS
+   ```
+
+**Error: "Private key not found"**
+
+Verify the path in your Claude Desktop configuration:
+- Use absolute paths or tilde expansion
+- Check file exists: `ls -l ~/.ssh/id_rsa_mcp`
+- Ensure proper permissions: `chmod 600 ~/.ssh/id_rsa_mcp`
+
+### Command Timeouts
+
+If commands are timing out, increase the timeout:
+
+```json
+{
+  "mcpServers": {
+    "unraid": {
+      "env": {
+        "COMMAND_TIMEOUT_MS": "30000"
+      }
+    }
+  }
+}
+```
+
+### Platform Detection Issues
+
+The server auto-detects your platform (Unraid, generic Linux, etc.) at startup. If detection fails:
+
+1. Check Claude Desktop logs for detection errors
+2. Verify SSH user has permissions to read `/etc/os-release`
+3. File an issue with your platform details
 
 ## Network Security
 
-- **Don't** expose directly to the internet
-- **Do** use VPN/Tailscale or reverse proxy with TLS
-- Set `OAUTH_SERVER_URL` when behind a reverse proxy
+- MCP SSH SRE uses stdio transport, so it runs locally on the machine running Claude Desktop
+- SSH credentials are never exposed to Claude's API or transmitted over the network
+- All SSH connections are direct from your machine to your server
+- No OAuth or HTTP server required
 
-### Security Checklist
+## Security Checklist
 
-- [ ] `REQUIRE_AUTH=true` in production
-- [ ] Server behind firewall/VPN or reverse proxy
-- [ ] OAuth credentials stored securely
-- [ ] Logs monitored for unauthorized attempts
+- [ ] Created dedicated SSH user (not root)
+- [ ] Generated unique SSH key pair
+- [ ] SSH key has correct permissions (600)
+- [ ] Password authentication disabled for SSH user
+- [ ] Tested SSH connection before configuring Claude Desktop
+- [ ] SSH user has minimal permissions (read-only where possible)
+- [ ] Monitoring SSH logs for unauthorized access attempts
