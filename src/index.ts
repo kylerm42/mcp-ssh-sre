@@ -60,7 +60,7 @@ async function main() {
   console.error("Initializing MCP server...");
   const server = new McpServer({
     name: "mcp-ssh-sre",
-    version: "2.0.0",
+    version: "2.1.0",
   });
 
   // Load tools for detected platform

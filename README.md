@@ -2,33 +2,67 @@
 
 An MCP server providing read-only server monitoring tools to AI assistants. Runs predefined diagnostic commands over SSH and passes only the results to the LLM - your server credentials and shell are never exposed.
 
-## Quick Start (Docker)
+## Quick Start
 
-Pre-built images available on [GitHub Container Registry](https://github.com/ohare93/mcp-ssh-sre/pkgs/container/mcp-ssh-sre).
-
-```bash
-docker run -d \
-  -p 3000:3000 \
-  -e SSH_HOST=server.local \
-  -e SSH_USERNAME=mcp-readonly \
-  -e SSH_KEY_PATH=/keys/id_ed25519 \
-  -v ~/.ssh/id_ed25519_mcp:/keys/id_ed25519:ro \
-  ghcr.io/ohare93/mcp-ssh-sre:latest
-```
-
-Then add to your MCP client:
+Install via npm and add to your Claude Desktop configuration:
 
 ```json
 {
   "mcpServers": {
-    "ssh-sre": {
-      "url": "http://your-server:3000/mcp"
+    "unraid": {
+      "command": "npx",
+      "args": ["-y", "@kylerm42/mcp-ssh-sre"],
+      "env": {
+        "SSH_HOST": "unraid.local",
+        "SSH_USERNAME": "mcp-readonly",
+        "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp"
+      }
     }
   }
 }
 ```
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker Compose, local installation, authentication setup, and security configuration.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for SSH key setup, configuration options, and alternative installation methods.
+
+## Claude Desktop Configuration
+
+After setting up SSH keys (see [DEPLOYMENT.md](DEPLOYMENT.md)), add this configuration to your Claude Desktop settings:
+
+**Location:** 
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "unraid": {
+      "command": "npx",
+      "args": ["-y", "@kylerm42/mcp-ssh-sre"],
+      "env": {
+        "SSH_HOST": "unraid.local",
+        "SSH_USERNAME": "mcp-readonly",
+        "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp",
+        "SSH_PORT": "22",
+        "COMMAND_TIMEOUT_MS": "15000"
+      }
+    }
+  }
+}
+```
+
+**Required environment variables:**
+- `SSH_HOST` - Your server hostname or IP address
+- `SSH_USERNAME` - SSH username (should be a dedicated read-only user)
+- `SSH_PRIVATE_KEY_PATH` - Path to SSH private key (supports `~/` tilde expansion)
+
+**Optional environment variables:**
+- `SSH_PORT` - SSH port (default: 22)
+- `COMMAND_TIMEOUT_MS` - Command timeout in milliseconds (default: 15000)
+- `MAX_CONSECUTIVE_FAILURES` - Circuit breaker threshold (default: 3)
+
+After saving the configuration, restart Claude Desktop to load the MCP server.
 
 ## Why Use This?
 
@@ -57,7 +91,7 @@ The server auto-detects your platform at startup and loads appropriate tools.
 ## Features
 
 - **12 tool modules with 79+ actions** for comprehensive server management
-- **Dual transport** - Stdio (local) or HTTP/SSE (network-accessible)
+- **Stdio transport** - Direct integration with Claude Desktop and MCP clients
 - **Read-only by design** - Zero risk of accidental modifications
 - **Docker management** - Logs, stats, environment, ports, network topology
 - **Storage & array** - Parity checks, SMART data, temperatures, mover logs (Unraid)
@@ -88,8 +122,7 @@ src/
 │   ├── linux/        # Generic Linux (baseline)
 │   └── unraid/       # Unraid-specific tools
 ├── tools/core/       # 10 core tool modules
-├── index.ts          # Stdio transport
-└── http-server.ts    # HTTP transport
+└── index.ts          # Stdio transport entry point
 ```
 
 ### Adding New Platforms
