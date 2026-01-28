@@ -14,13 +14,35 @@ Install via npm and add to your Claude Desktop configuration:
       "args": ["-y", "@kylerm42/mcp-ssh-sre"],
       "env": {
         "SSH_HOST": "unraid.local",
-        "SSH_USERNAME": "mcp-readonly",
+        "SSH_USERNAME": "root",
         "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp"
       }
     }
   }
 }
 ```
+
+**For Docker Container Deployment (running on target server):**
+
+If running this MCP server inside a Docker container on the same server it monitors, use `172.17.0.1` (Docker bridge gateway) as the SSH host:
+
+```json
+{
+  "mcpServers": {
+    "unraid": {
+      "command": "npx",
+      "args": ["-y", "@kylerm42/mcp-ssh-sre"],
+      "env": {
+        "SSH_HOST": "172.17.0.1",
+        "SSH_USERNAME": "root",
+        "SSH_PRIVATE_KEY_PATH": "/root/.ssh/id_rsa_mcp"
+      }
+    }
+  }
+}
+```
+
+Mount SSH keys into the container and ensure the container can reach the host via Docker's bridge network.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for SSH key setup, configuration options, and alternative installation methods.
 
@@ -42,7 +64,7 @@ After setting up SSH keys (see [DEPLOYMENT.md](DEPLOYMENT.md)), add this configu
       "args": ["-y", "@kylerm42/mcp-ssh-sre"],
       "env": {
         "SSH_HOST": "unraid.local",
-        "SSH_USERNAME": "mcp-readonly",
+        "SSH_USERNAME": "root",
         "SSH_PRIVATE_KEY_PATH": "~/.ssh/id_rsa_mcp",
         "SSH_PORT": "22",
         "COMMAND_TIMEOUT_MS": "15000"
@@ -53,8 +75,8 @@ After setting up SSH keys (see [DEPLOYMENT.md](DEPLOYMENT.md)), add this configu
 ```
 
 **Required environment variables:**
-- `SSH_HOST` - Your server hostname or IP address
-- `SSH_USERNAME` - SSH username (should be a dedicated read-only user)
+- `SSH_HOST` - Your server hostname, IP address, or `172.17.0.1` (for Docker containers on same host)
+- `SSH_USERNAME` - SSH username (typically `root` for Unraid)
 - `SSH_PRIVATE_KEY_PATH` - Path to SSH private key (supports `~/` tilde expansion)
 
 **Optional environment variables:**
@@ -144,6 +166,16 @@ npm run build    # Build for production
 
 ISC
 
+## Installation & Distribution
+
+**Published Package:**
+- npm: `@kylerm42/mcp-ssh-sre` (GitHub Packages)
+- Install: `npx @kylerm42/mcp-ssh-sre@latest`
+
+**Deployment Options:**
+1. **Direct execution** via `npx` (recommended for Claude Desktop)
+2. **Docker container** deployment (for running on target server with multi-mcp-proxy)
+
 ## Support
 
-For issues and questions, open an issue on the [GitHub repository](https://github.com/ohare93/mcp-ssh-sre).
+For issues and questions, open an issue on the [GitHub repository](https://github.com/kylerm42/mcp-ssh-sre).
