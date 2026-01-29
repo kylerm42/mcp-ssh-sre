@@ -6,6 +6,7 @@ export { PlatformRegistry, platformRegistry } from "./registry.js";
 import { LinuxPlatform } from "./linux/index.js";
 import { UnraidPlatform } from "./unraid/index.js";
 import { platformRegistry } from "./registry.js";
+import { logger } from "../logger.js";
 
 /**
  * Initialize the platform registry with all available platforms
@@ -16,7 +17,7 @@ export function initializePlatforms(): void {
   platformRegistry.register(LinuxPlatform);
   platformRegistry.register(UnraidPlatform);
 
-  console.error(
+  logger.debug(
     `Platform registry initialized with ${platformRegistry.listIds().length} platforms: ${platformRegistry.listIds().join(", ")}`
   );
 }

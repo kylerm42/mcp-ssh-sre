@@ -1,5 +1,6 @@
 import { NodeSSH } from "node-ssh";
 import "dotenv/config";
+import { logger } from "./logger.js";
 
 /**
  * SSH Connection Manager
@@ -80,7 +81,7 @@ export class SSHConnectionManager {
       await this.ssh.connect(connectionConfig);
       this.connected = true;
       this.reconnectAttempts = 0;
-      console.error(`Successfully connected to ${this.config.host}`);
+      logger.info(`Successfully connected to ${this.config.host}`);
     } catch (error) {
       this.connected = false;
       throw new Error(`Failed to connect to SSH server: ${error instanceof Error ? error.message : String(error)}`);
@@ -98,7 +99,7 @@ export class SSHConnectionManager {
     this.reconnectAttempts++;
     const backoffMs = this.baseBackoffMs * Math.pow(2, this.reconnectAttempts - 1);
 
-    console.error(`Attempting to reconnect (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${backoffMs}ms...`);
+    logger.warn(`Attempting to reconnect (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${backoffMs}ms...`);
 
     await new Promise(resolve => setTimeout(resolve, backoffMs));
     await this.connect();
@@ -159,7 +160,7 @@ export class SSHConnectionManager {
       // Open circuit breaker if threshold reached
       if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
         this.circuitBreakerOpen = true;
-        console.error(
+        logger.error(
           `Circuit breaker opened after ${this.consecutiveFailures} consecutive failures. ` +
           `Future commands will fail immediately until the MCP server is restarted.`
         );
@@ -205,7 +206,7 @@ export class SSHConnectionManager {
     if (this.connected) {
       this.ssh.dispose();
       this.connected = false;
-      console.error("Disconnected from SSH server");
+      logger.info("Disconnected from SSH server");
     }
   }
 }

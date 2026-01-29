@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Platform, SSHExecutor } from "./platforms/types.js";
+import { logger } from "./logger.js";
 
 // Core tools - always loaded regardless of platform
 import {
@@ -45,11 +46,11 @@ export function loadTools(
   platformModules.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
   for (const module of platformModules) {
-    console.error(`Loading platform tool module: ${module.name}`);
+    logger.debug(`Loading platform tool module: ${module.name}`);
     module.register(server, executor);
   }
 
-  console.error(`Loaded tools for platform: ${platform.displayName}`);
+  logger.debug(`Loaded tools for platform: ${platform.displayName}`);
 }
 
 /**
