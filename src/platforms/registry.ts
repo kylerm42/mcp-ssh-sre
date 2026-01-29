@@ -1,4 +1,5 @@
 import { Platform, SSHExecutor } from "./types.js";
+import { logger } from "../logger.js";
 
 /**
  * Platform Registry
@@ -25,12 +26,12 @@ export class PlatformRegistry {
     for (const platform of this.platforms.values()) {
       try {
         const score = await platform.detect(executor);
-        console.error(`Platform ${platform.id}: score=${score}`);
+        logger.debug(`Platform ${platform.id}: score=${score}`);
         if (score > 0) {
           results.push({ platform, score });
         }
       } catch (error) {
-        console.error(
+        logger.warn(
           `Platform ${platform.id}: detection failed - ${error instanceof Error ? error.message : String(error)}`
         );
       }
@@ -47,7 +48,7 @@ export class PlatformRegistry {
 
     this.detectedPlatform = results[0].platform;
 
-    console.error(
+    logger.debug(
       `Platform detected: ${this.detectedPlatform.displayName} (confidence: ${results[0].score}%)`
     );
 

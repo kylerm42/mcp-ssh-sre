@@ -181,8 +181,46 @@ try {
 
 **Never:**
 - Throw unhandled errors from tool handlers
-- Log errors to stdout (use stderr: `console.error()`)
+- Log to stdout (reserved for MCP protocol)
 - Expose SSH credentials or sensitive data in errors
+
+### Logging Standards
+
+**Always use the logger utility** (`src/logger.ts`) for diagnostic output:
+
+```typescript
+import { logger } from "../logger.js";
+
+// Debug: Detailed information for troubleshooting
+logger.debug("Platform registry initialized with 2 platforms");
+logger.debug(`Loading platform tool module: ${module.name}`);
+
+// Info: General informational messages
+logger.info("Successfully connected to 192.168.1.72");
+logger.info("MCP SSH SRE Server (stdio) ready");
+
+// Warn: Warning conditions (recoverable issues)
+logger.warn("Could not establish initial SSH connection");
+logger.warn("Attempting to reconnect (attempt 1/5)");
+
+// Error: Error conditions (failures)
+logger.error("Circuit breaker opened after 3 consecutive failures");
+logger.error("Fatal error: SSH connection failed");
+```
+
+**Log Levels:**
+- `debug`: Very detailed information (platform detection scores, tool loading)
+- `info`: Normal operational messages (startup, connections, shutdown)
+- `warn`: Warnings and recoverable issues (reconnects, fallbacks)
+- `error`: Errors and failures (circuit breaker, fatal errors)
+- `silent`: No output (useful for testing or production silence)
+
+**Important:**
+- All logs go to stderr (stdout is reserved for MCP JSON-RPC protocol)
+- Log format: `[LEVEL] message` (no timestamp - allows proxy to add its own)
+- Default log level is `info` (controlled by `LOG_LEVEL` environment variable)
+- Tool handlers should NOT use logger for normal operations (only for debugging/errors)
+- Use logger in infrastructure code: connection management, platform detection, tool loading
 
 ### Tool Registration Pattern
 
@@ -340,6 +378,7 @@ Optional:
 - `SSH_PORT`: SSH port (default: 22)
 - `COMMAND_TIMEOUT_MS`: Command timeout (default: 15000)
 - `MAX_CONSECUTIVE_FAILURES`: Circuit breaker threshold (default: 3)
+- `LOG_LEVEL`: Logging verbosity - `debug`, `info`, `warn`, `error`, `silent` (default: `info`)
 - `NODE_ENV`: Set to 'test' to disable auto-start
 
 ## Special Notes from .claude/CLAUDE.md

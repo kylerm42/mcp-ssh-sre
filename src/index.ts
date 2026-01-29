@@ -4,6 +4,7 @@ import "dotenv/config";
 import { SSHConnectionManager } from "./ssh-manager.js";
 import { initializePlatforms, platformRegistry, Platform } from "./platforms/index.js";
 import { loadTools } from "./tool-loader.js";
+import { logger } from "./logger.js";
 
 // Re-export for backward compatibility
 export { SSHConnectionManager };
@@ -17,16 +18,16 @@ async function main() {
 
   try {
     // Establish initial connection
-    console.error("Connecting to SSH server...");
+    logger.info("Connecting to SSH server...");
     await sshManager.connect();
-    console.error("SSH connection established");
+    logger.info("SSH connection established");
   } catch (error) {
-    console.error(`Warning: Could not establish initial SSH connection: ${error instanceof Error ? error.message : String(error)}`);
-    console.error("Server will attempt to connect when first command is executed");
+    logger.warn(`Could not establish initial SSH connection: ${error instanceof Error ? error.message : String(error)}`);
+    logger.warn("Server will attempt to connect when first command is executed");
   }
 
   // Initialize platform registry
-  console.error("Initializing platform registry...");
+  logger.debug("Initializing platform registry...");
   initializePlatforms();
 
   // Create SSH executor adapter for tool modules
@@ -41,14 +42,14 @@ async function main() {
   };
 
   // Detect platform
-  console.error("Detecting platform...");
+  logger.debug("Detecting platform...");
   let detectedPlatform: Platform;
   try {
     detectedPlatform = await platformRegistry.detect(sshExecutor);
-    console.error(`Detected platform: ${detectedPlatform.displayName} (${detectedPlatform.id})`);
+    logger.info(`Detected platform: ${detectedPlatform.displayName} (${detectedPlatform.id})`);
   } catch (error) {
-    console.error(`Platform detection failed: ${error instanceof Error ? error.message : String(error)}`);
-    console.error("Falling back to generic Linux platform");
+    logger.warn(`Platform detection failed: ${error instanceof Error ? error.message : String(error)}`);
+    logger.warn("Falling back to generic Linux platform");
     const fallback = platformRegistry.get("linux");
     if (!fallback) {
       throw new Error("Platform detection failed and no fallback platform available");
@@ -57,26 +58,26 @@ async function main() {
   }
 
   // Create MCP server
-  console.error("Initializing MCP server...");
+  logger.debug("Initializing MCP server...");
   const server = new McpServer({
     name: "mcp-ssh-sre",
     version: "2.1.0",
   });
 
   // Load tools for detected platform
-  console.error("Loading tools for platform...");
+  logger.debug("Loading tools for platform...");
   loadTools(server, sshExecutor, detectedPlatform);
-  console.error("All MCP tools registered");
+  logger.debug("All MCP tools registered");
 
   // Handle graceful shutdown
   process.on("SIGINT", async () => {
-    console.error("\nReceived SIGINT, shutting down gracefully...");
+    logger.info("Received SIGINT, shutting down gracefully...");
     await sshManager.disconnect();
     process.exit(0);
   });
 
   process.on("SIGTERM", async () => {
-    console.error("\nReceived SIGTERM, shutting down gracefully...");
+    logger.info("Received SIGTERM, shutting down gracefully...");
     await sshManager.disconnect();
     process.exit(0);
   });
@@ -85,14 +86,14 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error(`MCP SSH SRE Server (stdio) ready`);
-  console.error(`Platform: ${detectedPlatform.displayName} (${detectedPlatform.id})`);
+  logger.info(`MCP SSH SRE Server (stdio) ready`);
+  logger.info(`Platform: ${detectedPlatform.displayName} (${detectedPlatform.id})`);
 }
 
 // Start the server only if not in test environment
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   main().catch((error) => {
-    console.error("Fatal error:", error);
+    logger.error(`Fatal error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
 }
