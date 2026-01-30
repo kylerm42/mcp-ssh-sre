@@ -1,6 +1,6 @@
 {
   "name": "@kylerm42/mcp-ssh-sre",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "MCP server for SRE operations across multiple platforms via SSH",
   "main": "dist/index.js",
   "type": "module",
