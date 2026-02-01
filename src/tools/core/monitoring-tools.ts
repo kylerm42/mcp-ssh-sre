@@ -16,7 +16,7 @@ export function registerMonitoringTools(
     {
       action: z.enum(monitoringActions).describe("Action"),
       sortBy: z.enum(["cpu", "memory"]).optional().describe("Sort by"),
-      count: z.number().int().positive().optional().default(20).describe("Count"),
+      count: z.number().int().min(1).optional().default(20).describe("Count"),
       listening: z.boolean().optional().describe("Listening only"),
       ...outputFiltersSchema.shape,
     },

@@ -18,7 +18,7 @@ export function registerSystemTools(
       path: z.string().optional().describe("Path"),
       pattern: z.string().optional().describe("Pattern"),
       long: z.boolean().optional().describe("Long format"),
-      maxLines: z.number().int().positive().optional().default(1000).describe("Max lines"),
+      maxLines: z.number().int().min(1).optional().default(1000).describe("Max lines"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

@@ -14,7 +14,7 @@ export function registerUnraidPluginTools(server: McpServer, sshExecutor: SSHExe
       template: z.string().optional().describe("Template name"),
       share: z.string().optional().describe("Share name"),
       path: z.string().optional().default("/boot/config").describe("Path"),
-      hours: z.number().int().positive().optional().default(24).describe("Hours"),
+      hours: z.number().int().min(1).optional().default(24).describe("Hours"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {

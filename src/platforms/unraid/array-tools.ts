@@ -20,8 +20,8 @@ export function registerUnraidArrayTools(
       action: z.enum(unraidActions).describe("Action"),
       device: z.string().optional().describe("Device"),
       share: z.string().optional().describe("Share name"),
-      lines: z.number().int().positive().optional().default(100).describe("Lines"),
-      limit: z.number().int().positive().optional().default(5).describe("Limit"),
+      lines: z.number().int().min(1).optional().default(100).describe("Lines"),
+      limit: z.number().int().min(1).optional().default(5).describe("Limit"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
