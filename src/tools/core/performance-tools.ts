@@ -13,8 +13,8 @@ export function registerPerformanceTools(server: McpServer, sshExecutor: SSHExec
     {
       action: z.enum(performanceActions).describe("Action"),
       metric: z.enum(["cpu", "memory", "disk"]).optional().describe("Metric type"),
-      durationSeconds: z.number().int().positive().optional().default(30).describe("Duration"),
-      intervalSeconds: z.number().int().positive().optional().default(5).describe("Interval"),
+      durationSeconds: z.number().int().min(1).optional().default(30).describe("Duration"),
+      intervalSeconds: z.number().int().min(1).optional().default(5).describe("Interval"),
       ...outputFiltersSchema.shape,
     },
     async (args) => {
