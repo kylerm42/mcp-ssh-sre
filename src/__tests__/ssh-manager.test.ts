@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { NodeSSH } from 'node-ssh';
+import { Client } from 'ssh2';
 
-// Mock node-ssh
-vi.mock('node-ssh');
+// Mock ssh2
+vi.mock('ssh2');
 
 // Mock dotenv
 vi.mock('dotenv/config', () => ({}));
 
+// Mock fs (used by SSH2Adapter when reading private key files)
+vi.mock('fs', () => ({
+  readFileSync: vi.fn().mockReturnValue(Buffer.from('mock-private-key')),
+}));
+
 describe('SSHConnectionManager', () => {
-  let mockSSH: any;
+  let mockClient: any;
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
@@ -21,19 +26,50 @@ describe('SSHConnectionManager', () => {
     process.env.SSH_USERNAME = 'test-user';
     process.env.SSH_PRIVATE_KEY_PATH = '/path/to/key';
 
-    // Create mock SSH instance
-    mockSSH = {
-      connect: vi.fn().mockResolvedValue(undefined),
-      execCommand: vi.fn().mockResolvedValue({
-        stdout: 'test output',
-        stderr: '',
-        code: 0,
-      }),
-      dispose: vi.fn(),
+    // Create mock Client instance with ssh2's callback-based interface
+    mockClient = {
+      connect: vi.fn(),
+      exec: vi.fn(),
+      sftp: vi.fn(),
+      end: vi.fn(),
+      once: vi.fn(),
+      on: vi.fn(),
     };
 
-    // Mock NodeSSH constructor
-    vi.mocked(NodeSSH).mockImplementation(() => mockSSH);
+    // Default: connect triggers 'ready' immediately
+    mockClient.once.mockImplementation((event: string, listener: (...args: unknown[]) => void) => {
+      if (event === 'ready') {
+        setImmediate(() => listener());
+      }
+      return mockClient;
+    });
+
+    // Default: exec resolves with stdout='test output', stderr='', code=0
+    mockClient.exec.mockImplementation(
+      (_cmd: string, callback: (err: Error | undefined, stream: any) => void) => {
+        const stream = {
+          stdout: {
+            on: vi.fn().mockImplementation((event: string, listener: (chunk: Buffer) => void) => {
+              if (event === 'data') {
+                setImmediate(() => listener(Buffer.from('test output')));
+              }
+            }),
+          },
+          stderr: {
+            on: vi.fn(),
+          },
+          on: vi.fn().mockImplementation((event: string, listener: (code: number | null) => void) => {
+            if (event === 'close') {
+              setImmediate(() => listener(0));
+            }
+          }),
+        };
+        callback(undefined, stream);
+      }
+    );
+
+    // Mock Client constructor
+    vi.mocked(Client).mockImplementation(() => mockClient);
   });
 
   afterEach(() => {
@@ -88,12 +124,14 @@ describe('SSHConnectionManager', () => {
 
       await manager.connect();
 
-      expect(mockSSH.connect).toHaveBeenCalledWith({
-        host: 'test-host',
-        port: 22,
-        username: 'test-user',
-        privateKeyPath: '/path/to/key',
-      });
+      expect(mockClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'test-host',
+          port: 22,
+          username: 'test-user',
+          privateKey: expect.any(Buffer),
+        })
+      );
       expect(manager.isConnected()).toBe(true);
     });
 
@@ -106,16 +144,23 @@ describe('SSHConnectionManager', () => {
 
       await manager.connect();
 
-      expect(mockSSH.connect).toHaveBeenCalledWith({
-        host: 'test-host',
-        port: 22,
-        username: 'test-user',
-        password: 'test-password',
-      });
+      expect(mockClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'test-host',
+          port: 22,
+          username: 'test-user',
+          password: 'test-password',
+        })
+      );
     });
 
     it('should handle connection failure', async () => {
-      mockSSH.connect.mockRejectedValueOnce(new Error('Connection failed'));
+      mockClient.once.mockImplementation((event: string, listener: (err: Error) => void) => {
+        if (event === 'error') {
+          setImmediate(() => listener(new Error('Connection failed')));
+        }
+        return mockClient;
+      });
 
       const { SSHConnectionManager } = await import('../ssh-manager.js');
       const manager = new SSHConnectionManager();
@@ -132,7 +177,7 @@ describe('SSHConnectionManager', () => {
 
       await manager.connect();
 
-      expect(mockSSH.connect).toHaveBeenCalledWith(
+      expect(mockClient.connect).toHaveBeenCalledWith(
         expect.objectContaining({ port: 2222 })
       );
     });
@@ -146,7 +191,7 @@ describe('SSHConnectionManager', () => {
 
       const result = await manager.executeCommand('ls -la');
 
-      expect(mockSSH.execCommand).toHaveBeenCalledWith('ls -la');
+      expect(mockClient.exec).toHaveBeenCalledWith('ls -la', expect.any(Function));
       expect(result).toEqual({
         stdout: 'test output',
         stderr: '',
@@ -155,11 +200,28 @@ describe('SSHConnectionManager', () => {
     });
 
     it('should handle command with stderr', async () => {
-      mockSSH.execCommand.mockResolvedValueOnce({
-        stdout: '',
-        stderr: 'error message',
-        code: 1,
-      });
+      mockClient.exec.mockImplementationOnce(
+        (_cmd: string, callback: (err: Error | undefined, stream: any) => void) => {
+          const stream = {
+            stdout: {
+              on: vi.fn(),
+            },
+            stderr: {
+              on: vi.fn().mockImplementation((event: string, listener: (chunk: Buffer) => void) => {
+                if (event === 'data') {
+                  setImmediate(() => listener(Buffer.from('error message')));
+                }
+              }),
+            },
+            on: vi.fn().mockImplementation((event: string, listener: (code: number | null) => void) => {
+              if (event === 'close') {
+                setImmediate(() => listener(1));
+              }
+            }),
+          };
+          callback(undefined, stream);
+        }
+      );
 
       const { SSHConnectionManager } = await import('../ssh-manager.js');
       const manager = new SSHConnectionManager();
@@ -180,17 +242,34 @@ describe('SSHConnectionManager', () => {
 
       const result = await manager.executeCommand('ls');
 
-      expect(mockSSH.connect).toHaveBeenCalled();
-      expect(mockSSH.execCommand).toHaveBeenCalledWith('ls');
+      expect(mockClient.connect).toHaveBeenCalled();
+      expect(mockClient.exec).toHaveBeenCalledWith('ls', expect.any(Function));
       expect(result.stdout).toBe('test output');
     });
 
     it('should handle null exit code', async () => {
-      mockSSH.execCommand.mockResolvedValueOnce({
-        stdout: 'output',
-        stderr: '',
-        code: null,
-      });
+      mockClient.exec.mockImplementationOnce(
+        (_cmd: string, callback: (err: Error | undefined, stream: any) => void) => {
+          const stream = {
+            stdout: {
+              on: vi.fn().mockImplementation((event: string, listener: (chunk: Buffer) => void) => {
+                if (event === 'data') {
+                  setImmediate(() => listener(Buffer.from('output')));
+                }
+              }),
+            },
+            stderr: {
+              on: vi.fn(),
+            },
+            on: vi.fn().mockImplementation((event: string, listener: (code: number | null) => void) => {
+              if (event === 'close') {
+                setImmediate(() => listener(null));
+              }
+            }),
+          };
+          callback(undefined, stream);
+        }
+      );
 
       const { SSHConnectionManager } = await import('../ssh-manager.js');
       const manager = new SSHConnectionManager();
@@ -210,7 +289,7 @@ describe('SSHConnectionManager', () => {
 
       await manager.disconnect();
 
-      expect(mockSSH.dispose).toHaveBeenCalled();
+      expect(mockClient.end).toHaveBeenCalled();
       expect(manager.isConnected()).toBe(false);
     });
 
@@ -219,7 +298,7 @@ describe('SSHConnectionManager', () => {
       const manager = new SSHConnectionManager();
 
       await expect(manager.disconnect()).resolves.not.toThrow();
-      expect(mockSSH.dispose).not.toHaveBeenCalled();
+      expect(mockClient.end).not.toHaveBeenCalled();
     });
   });
 });

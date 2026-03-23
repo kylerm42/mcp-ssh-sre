@@ -154,6 +154,45 @@ src/
 3. Create platform-specific tool modules
 4. Register in `src/platforms/index.ts`
 
+## Write Capabilities
+
+In addition to read-only monitoring tools, the server includes a `file_write` tool for making changes to remote files.
+
+### Actions
+
+| Action | Description |
+|---|---|
+| `write_file` | Create or overwrite a file; supports `encoding: "base64"` for binary content |
+| `append_file` | Append text content to an existing file |
+| `replace_in_file` | Search-and-replace within a file; errors if `oldString` not found |
+| `delete_file` | Delete a file |
+| `mkdir` | Create a directory including intermediate parents |
+| `list_allowed_paths` | Return the configured write allowlist |
+
+### Binary File Support
+
+`write_file` accepts an optional `encoding` parameter (`"utf8"` by default, or `"base64"`). When `encoding: "base64"` is set, the server decodes the content on the remote host via `base64 -d` and writes the raw bytes to the target path. This supports binary files up to 50MB (pre-encoding).
+
+Example tool call:
+```json
+{
+  "action": "write_file",
+  "path": "/mnt/user/appdata/app/cert.pem",
+  "content": "<base64-encoded content>",
+  "encoding": "base64"
+}
+```
+
+### Write Allowlist
+
+All mutating actions require the target path to be covered by a prefix configured in the `WRITE_ALLOWED_PATHS` environment variable. The server rejects any path not matching an allowlisted prefix.
+
+```
+WRITE_ALLOWED_PATHS=/mnt/user/appdata,/tmp/agent-scratch
+```
+
+Multiple prefixes are comma-separated. If `WRITE_ALLOWED_PATHS` is not set, all write operations are rejected. Use the `list_allowed_paths` action to query the effective allowlist at runtime.
+
 ## Development
 
 ```bash

@@ -6,17 +6,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 export type SSHExecutor = (command: string) => Promise<string>;
 
 /**
- * Minimal interface for SFTP file upload operations.
- * Decouples tools from the concrete SSHConnectionManager to avoid
- * pulling the full node-ssh / @types/ssh2 type graph into tsc's
- * structural checker, which causes exponential union expansion and OOM
- * (TypeScript issue #34933).
- */
-export interface SFTPUploader {
-  putFile(localPath: string, remotePath: string): Promise<void>;
-}
-
-/**
  * Platform capabilities describing what features are available
  */
 export interface PlatformCapability {

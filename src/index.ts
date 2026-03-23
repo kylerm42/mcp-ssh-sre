@@ -62,12 +62,12 @@ async function main() {
   const server = new McpServer({
     name: "mcp-ssh-sre",
     version: "2.1.2",
-    description: "Read-only SSH-based server monitoring and management tools with platform auto-detection (Unraid, Linux). Provides Docker, system, network, storage, and hardware monitoring capabilities.",
+    description: "SSH-based server monitoring and management tools with platform auto-detection (Unraid, Linux). Provides Docker, system, network, storage, and hardware monitoring capabilities. Includes file write support with base64 binary upload.",
   });
 
   // Load tools for detected platform
   logger.debug("Loading tools for platform...");
-  loadTools(server, sshExecutor, detectedPlatform, sshManager);
+  loadTools(server, sshExecutor, detectedPlatform);
   logger.debug("All MCP tools registered");
 
   // Handle graceful shutdown

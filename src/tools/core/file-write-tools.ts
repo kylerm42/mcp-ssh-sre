@@ -1,8 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { promises as fs } from "fs";
 import { posix } from "path";
-import type { SSHExecutor, SFTPUploader } from "../../platforms/types.js";
+import type { SSHExecutor } from "../../platforms/types.js";
 
 const fileWriteActions = [
   "write_file",
@@ -10,7 +9,6 @@ const fileWriteActions = [
   "replace_in_file",
   "delete_file",
   "mkdir",
-  "upload_file",
   "list_allowed_paths",
 ] as const;
 
@@ -38,8 +36,7 @@ function shellEscape(value: string): string {
 
 export function registerFileWriteTools(
   server: McpServer,
-  sshExecutor: SSHExecutor,
-  sshManager: SFTPUploader
+  sshExecutor: SSHExecutor
 ): void {
   // Parse allowlist once at registration time
   const rawAllowedPaths = process.env.WRITE_ALLOWED_PATHS ?? "";
@@ -50,14 +47,14 @@ export function registerFileWriteTools(
 
   server.tool(
     "file_write",
-    "File write operations on the remote server. All mutating actions require the target path to be covered by an allowlisted prefix (WRITE_ALLOWED_PATHS). Actions: write_file, append_file, replace_in_file, delete_file, mkdir, upload_file, list_allowed_paths.",
+    "File write operations on the remote server. All mutating actions require the target path to be covered by an allowlisted prefix (WRITE_ALLOWED_PATHS). Actions: write_file, append_file, replace_in_file, delete_file, mkdir, list_allowed_paths. write_file supports encoding: 'utf8' (default) or 'base64' for binary file uploads up to 50MB.",
     {
       action: z.enum(fileWriteActions).describe("Action to perform"),
       path: z.string().optional().describe("Absolute remote path (required for all actions except list_allowed_paths)"),
-      content: z.string().optional().describe("File text content (required for write_file, append_file)"),
+      content: z.string().max(67_108_864).optional().describe("File content (required for write_file, append_file); for write_file with encoding 'base64', provide base64-encoded bytes (50MB source file limit)"),
+      encoding: z.enum(["utf8", "base64"]).default("utf8").optional().describe("Content encoding for write_file: 'utf8' (default) or 'base64' for binary files up to 50MB"),
       oldString: z.string().min(1).optional().describe("Text to search for (required for replace_in_file; must be non-empty)"),
       newString: z.string().optional().describe("Replacement text (required for replace_in_file)"),
-      stageId: z.string().optional().describe("Staged file path on proxy machine (required for upload_file)"),
     },
     async (args) => {
       try {
@@ -87,8 +84,13 @@ export function registerFileWriteTools(
               };
             }
             const escapedPath = shellEscape(args.path);
-            const escapedContent = shellEscape(args.content);
-            await sshExecutor(`printf '%s' '${escapedContent}' | tee '${escapedPath}' > /dev/null`);
+            if (args.encoding === "base64") {
+              const escapedContent = shellEscape(args.content);
+              await sshExecutor(`printf '%s' '${escapedContent}' | base64 -d > '${escapedPath}'`);
+            } else {
+              const escapedContent = shellEscape(args.content);
+              await sshExecutor(`printf '%s' '${escapedContent}' | tee '${escapedPath}' > /dev/null`);
+            }
             return { content: [{ type: "text", text: `Successfully wrote to "${args.path}"` }] };
           }
 
@@ -169,39 +171,6 @@ export function registerFileWriteTools(
             const escapedPath = shellEscape(args.path);
             await sshExecutor(`mkdir -p '${escapedPath}'`);
             return { content: [{ type: "text", text: `Successfully created directory "${args.path}"` }] };
-          }
-
-          case "upload_file": {
-            if (!args.path) {
-              return { content: [{ type: "text", text: "Error: path is required for upload_file" }], isError: true };
-            }
-            if (!args.stageId) {
-              return { content: [{ type: "text", text: "Error: stageId is required for upload_file" }], isError: true };
-            }
-            if (!isPathAllowed(args.path, allowedPaths)) {
-              return {
-                content: [{ type: "text", text: `Error: path "${args.path}" is not under an allowed write prefix` }],
-                isError: true,
-              };
-            }
-            const stagedPath = args.stageId;
-            let transferError: Error | null = null;
-            try {
-              await sshManager.putFile(stagedPath, args.path);
-            } catch (err) {
-              transferError = err instanceof Error ? err : new Error(String(err));
-            } finally {
-              // Always attempt cleanup of the temp file; do not throw on cleanup failure
-              try {
-                await fs.unlink(stagedPath);
-              } catch {
-                // Cleanup failure is non-fatal
-              }
-            }
-            if (transferError) {
-              throw transferError;
-            }
-            return { content: [{ type: "text", text: `Successfully uploaded file to "${args.path}"` }] };
           }
 
           default:

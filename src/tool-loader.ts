@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Platform, SSHExecutor, SFTPUploader } from "./platforms/types.js";
+import { Platform, SSHExecutor } from "./platforms/types.js";
 import { logger } from "./logger.js";
 
 // Core tools - always loaded regardless of platform
@@ -26,8 +26,7 @@ import {
 export function loadTools(
   server: McpServer,
   executor: SSHExecutor,
-  platform: Platform,
-  sshManager: SFTPUploader
+  platform: Platform
 ): void {
   // 1. Register core tools (always loaded)
   registerDockerTools(server, executor);
@@ -40,7 +39,7 @@ export function loadTools(
   registerVMTools(server, executor);
   registerContainerTopologyTools(server, executor);
   registerHealthDiagnosticsTools(server, executor);
-  registerFileWriteTools(server, executor, sshManager);
+  registerFileWriteTools(server, executor);
 
   // 2. Register platform-specific tools
   const platformModules = platform.getToolModules();

@@ -1,25 +1,82 @@
-import { NodeSSH } from "node-ssh";
+import { Client } from "ssh2";
+import * as fs from "fs";
 import "dotenv/config";
 import { logger } from "./logger.js";
 
 /**
- * Minimal surface of NodeSSH that SSHConnectionManager actually uses.
+ * Minimal surface of the ssh2 Client that SSHConnectionManager actually uses.
  *
- * Typing `ssh` against this interface instead of the concrete `NodeSSH` class
- * prevents tsc from resolving NodeSSH's full type graph (which pulls in
- * @types/ssh2's large union/overload types and triggers exponential expansion —
- * TypeScript issue #34933).
+ * Typing `ssh` against this interface instead of the concrete Client class
+ * keeps the type surface narrow and avoids pulling in any external type
+ * declarations that could trigger exponential union expansion in tsc.
  */
 interface NodeSSHClient {
   connect(config: Record<string, unknown>): Promise<unknown>;
   execCommand(command: string): Promise<{ stdout: string; stderr: string; code: number | null }>;
-  putFile(localPath: string, remotePath: string): Promise<void>;
   dispose(): void;
 }
 
 /**
+ * Adapter that wraps ssh2's callback-based Client in the NodeSSHClient interface.
+ */
+class SSH2Adapter implements NodeSSHClient {
+  private client: Client;
+
+  constructor() {
+    this.client = new Client();
+  }
+
+  connect(config: Record<string, unknown>): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      this.client.once('ready', () => resolve(undefined));
+      this.client.once('error', (err: Error) => reject(err));
+
+      const connectConfig: Record<string, unknown> = {
+        host: config.host,
+        port: config.port ?? 22,
+        username: config.username,
+      };
+
+      if (config.password) {
+        connectConfig.password = config.password;
+      } else if (config.privateKeyPath) {
+        connectConfig.privateKey = fs.readFileSync(config.privateKeyPath as string);
+      }
+
+      this.client.connect(connectConfig as unknown as Parameters<Client['connect']>[0]);
+    });
+  }
+
+  execCommand(command: string): Promise<{ stdout: string; stderr: string; code: number | null }> {
+    return new Promise((resolve, reject) => {
+      this.client.exec(command, (err, stream) => {
+        if (err) return reject(err);
+
+        const stdoutChunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
+
+        stream.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+        stream.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+
+        stream.on('close', (code: number | null) => {
+          resolve({
+            stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+            stderr: Buffer.concat(stderrChunks).toString('utf8'),
+            code,
+          });
+        });
+      });
+    });
+  }
+
+  dispose(): void {
+    this.client.end();
+  }
+}
+
+/**
  * SSH Connection Manager
- * Handles SSH connections to Unraid server with auto-reconnect functionality
+ * Handles SSH connections to remote servers with auto-reconnect functionality
  */
 export class SSHConnectionManager {
   private ssh: NodeSSHClient;
@@ -40,60 +97,33 @@ export class SSHConnectionManager {
   private circuitBreakerOpen: boolean = false;
 
   constructor() {
-    this.ssh = new NodeSSH();
+    this.ssh = new SSH2Adapter();
 
-    // Load SSH configuration from environment variables
     const host = process.env.SSH_HOST;
     const port = process.env.SSH_PORT ? parseInt(process.env.SSH_PORT) : 22;
     const username = process.env.SSH_USERNAME;
     const privateKeyPath = process.env.SSH_PRIVATE_KEY_PATH;
     const password = process.env.SSH_PASSWORD;
 
-    if (!host) {
-      throw new Error("SSH_HOST environment variable is required");
-    }
-    if (!username) {
-      throw new Error("SSH_USERNAME environment variable is required");
-    }
+    if (!host) throw new Error("SSH_HOST environment variable is required");
+    if (!username) throw new Error("SSH_USERNAME environment variable is required");
     if (!privateKeyPath && !password) {
       throw new Error("Either SSH_PRIVATE_KEY_PATH or SSH_PASSWORD environment variable is required");
     }
 
-    this.config = {
-      host,
-      port,
-      username,
-      privateKeyPath,
-      password,
-    };
+    this.config = { host, port, username, privateKeyPath, password };
 
-    // Load timeout and circuit breaker configuration
     this.commandTimeoutMs = process.env.COMMAND_TIMEOUT_MS
       ? parseInt(process.env.COMMAND_TIMEOUT_MS)
-      : 15000; // Default: 15 seconds
+      : 15000;
     this.maxConsecutiveFailures = process.env.MAX_CONSECUTIVE_FAILURES
       ? parseInt(process.env.MAX_CONSECUTIVE_FAILURES)
-      : 3; // Default: 3 consecutive failures
+      : 3;
   }
 
-  /**
-   * Establish SSH connection
-   */
   async connect(): Promise<void> {
     try {
-      const connectionConfig: any = {
-        host: this.config.host,
-        port: this.config.port,
-        username: this.config.username,
-      };
-
-      if (this.config.privateKeyPath) {
-        connectionConfig.privateKeyPath = this.config.privateKeyPath;
-      } else if (this.config.password) {
-        connectionConfig.password = this.config.password;
-      }
-
-      await this.ssh.connect(connectionConfig);
+      await this.ssh.connect(this.config);
       this.connected = true;
       this.reconnectAttempts = 0;
       logger.info(`Successfully connected to ${this.config.host}`);
@@ -103,9 +133,6 @@ export class SSHConnectionManager {
     }
   }
 
-  /**
-   * Reconnect with exponential backoff
-   */
   private async reconnect(): Promise<void> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       throw new Error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts`);
@@ -113,18 +140,12 @@ export class SSHConnectionManager {
 
     this.reconnectAttempts++;
     const backoffMs = this.baseBackoffMs * Math.pow(2, this.reconnectAttempts - 1);
-
     logger.warn(`Attempting to reconnect (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${backoffMs}ms...`);
-
     await new Promise(resolve => setTimeout(resolve, backoffMs));
     await this.connect();
   }
 
-  /**
-   * Execute command via SSH with timeout and circuit breaker protection
-   */
   async executeCommand(command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    // Check circuit breaker
     if (this.circuitBreakerOpen) {
       throw new Error(
         `Circuit breaker is open after ${this.consecutiveFailures} consecutive failures. ` +
@@ -132,7 +153,6 @@ export class SSHConnectionManager {
       );
     }
 
-    // Timeout ID for cleanup
     let timeoutId: NodeJS.Timeout | null = null;
 
     try {
@@ -140,23 +160,19 @@ export class SSHConnectionManager {
         await this.connect();
       }
 
-      // Create a timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           reject(new Error(`TIMEOUT: Command timed out after ${this.commandTimeoutMs}ms`));
         }, this.commandTimeoutMs);
       });
 
-      // Race between command execution and timeout
       const result = await Promise.race([
         this.ssh.execCommand(command),
         timeoutPromise,
       ]);
 
-      // Clear timeout on success
       if (timeoutId) clearTimeout(timeoutId);
 
-      // Reset circuit breaker on successful command
       this.consecutiveFailures = 0;
       this.circuitBreakerOpen = false;
 
@@ -166,13 +182,10 @@ export class SSHConnectionManager {
         exitCode: result.code ?? 0,
       };
     } catch (error) {
-      // Clear timeout on error
       if (timeoutId) clearTimeout(timeoutId);
 
-      // Increment failure counter
       this.consecutiveFailures++;
 
-      // Open circuit breaker if threshold reached
       if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
         this.circuitBreakerOpen = true;
         logger.error(
@@ -181,7 +194,6 @@ export class SSHConnectionManager {
         );
       }
 
-      // Determine error type for better error messages
       const errorMessage = error instanceof Error ? error.message : String(error);
       const isTimeout = errorMessage.includes("TIMEOUT:");
       const isConnection = errorMessage.toLowerCase().includes("connection");
@@ -207,29 +219,10 @@ export class SSHConnectionManager {
     }
   }
 
-  /**
-   * Transfer a local file to the remote server via SFTP
-   */
-  async putFile(localPath: string, remotePath: string): Promise<void> {
-    try {
-      await this.ssh.putFile(localPath, remotePath);
-    } catch (error) {
-      throw new Error(
-        `Failed to transfer file to remote path "${remotePath}": ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-
-  /**
-   * Check if connected
-   */
   isConnected(): boolean {
     return this.connected;
   }
 
-  /**
-   * Disconnect from SSH
-   */
   async disconnect(): Promise<void> {
     if (this.connected) {
       this.ssh.dispose();
