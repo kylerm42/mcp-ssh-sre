@@ -10,6 +10,7 @@ const fileWriteActions = [
   "delete_file",
   "mkdir",
   "list_allowed_paths",
+  "download_url",
 ] as const;
 
 /**
@@ -47,7 +48,7 @@ export function registerFileWriteTools(
 
   server.tool(
     "file_write",
-    "File write operations on the remote server. All mutating actions require the target path to be covered by an allowlisted prefix (WRITE_ALLOWED_PATHS). Actions: write_file, append_file, replace_in_file, delete_file, mkdir, list_allowed_paths. write_file supports encoding: 'utf8' (default) or 'base64' for binary file uploads up to 50MB.",
+    "File write operations on the remote server. All mutating actions require the target path to be covered by an allowlisted prefix (WRITE_ALLOWED_PATHS). Actions: write_file, append_file, replace_in_file, delete_file, mkdir, list_allowed_paths, download_url. write_file supports encoding: 'utf8' (default) or 'base64' for binary file uploads up to 50MB. download_url fetches a URL to an allowed remote path via SSH-executed curl (HTTPS only).",
     {
       action: z.enum(fileWriteActions).describe("Action to perform"),
       path: z.string().optional().describe("Absolute remote path (required for all actions except list_allowed_paths)"),
@@ -55,6 +56,7 @@ export function registerFileWriteTools(
       encoding: z.enum(["utf8", "base64"]).default("utf8").optional().describe("Content encoding for write_file: 'utf8' (default) or 'base64' for binary files up to 50MB"),
       oldString: z.string().min(1).optional().describe("Text to search for (required for replace_in_file; must be non-empty)"),
       newString: z.string().optional().describe("Replacement text (required for replace_in_file)"),
+      url: z.string().url().optional().describe("HTTPS URL to fetch (required for download_url)"),
     },
     async (args) => {
       try {
@@ -171,6 +173,28 @@ export function registerFileWriteTools(
             const escapedPath = shellEscape(args.path);
             await sshExecutor(`mkdir -p '${escapedPath}'`);
             return { content: [{ type: "text", text: `Successfully created directory "${args.path}"` }] };
+          }
+
+          case "download_url": {
+            if (!args.path) {
+              return { content: [{ type: "text", text: "Error: path is required for download_url" }], isError: true };
+            }
+            if (!args.url) {
+              return { content: [{ type: "text", text: "Error: url is required for download_url" }], isError: true };
+            }
+            if (!args.url.startsWith("https://")) {
+              return { content: [{ type: "text", text: "Error: url must use HTTPS" }], isError: true };
+            }
+            if (!isPathAllowed(args.path, allowedPaths)) {
+              return {
+                content: [{ type: "text", text: `Error: path "${args.path}" is not under an allowed write prefix` }],
+                isError: true,
+              };
+            }
+            const escapedUrl = shellEscape(args.url);
+            const escapedPath = shellEscape(args.path);
+            await sshExecutor(`curl -fsSL '${escapedUrl}' -o '${escapedPath}'`);
+            return { content: [{ type: "text", text: `Successfully downloaded to "${args.path}"` }] };
           }
 
           default:

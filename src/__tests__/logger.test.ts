@@ -10,6 +10,9 @@ describe("Logger", () => {
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     // Save original LOG_LEVEL
     originalEnv = process.env.LOG_LEVEL;
+    // Reset logger to default level before each test — Bun loads .env natively,
+    // so LOG_LEVEL from .env may be set at singleton init time.
+    logger.setLevel("info");
   });
 
   afterEach(() => {

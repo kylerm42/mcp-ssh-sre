@@ -41,17 +41,18 @@ describe("File Write Tools", () => {
       expect(registeredTools.has("file_write")).toBe(true);
     });
 
-    it("should have 6 actions in the enum schema", () => {
+    it("should have 7 actions in the enum schema", () => {
       const tool = registeredTools.get("file_write");
       const actionSchema = tool.schema.action;
       // Zod enum exposes its values via .options
-      expect(actionSchema.options).toHaveLength(6);
+      expect(actionSchema.options).toHaveLength(7);
       expect(actionSchema.options).toContain("write_file");
       expect(actionSchema.options).toContain("append_file");
       expect(actionSchema.options).toContain("replace_in_file");
       expect(actionSchema.options).toContain("delete_file");
       expect(actionSchema.options).toContain("mkdir");
       expect(actionSchema.options).toContain("list_allowed_paths");
+      expect(actionSchema.options).toContain("download_url");
     });
   });
 
@@ -126,6 +127,13 @@ describe("File Write Tools", () => {
     it("mkdir — rejects path outside allowlist", async () => {
       const tool = registeredTools.get("file_write");
       const result = await tool.handler({ action: "mkdir", path: disallowedPath });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("not under an allowed write prefix");
+    });
+
+    it("download_url — rejects path outside allowlist", async () => {
+      const tool = registeredTools.get("file_write");
+      const result = await tool.handler({ action: "download_url", url: "https://example.com/file.bin", path: disallowedPath });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("not under an allowed write prefix");
     });
@@ -351,6 +359,65 @@ describe("File Write Tools", () => {
       expect(mockSSHExecutor).toHaveBeenCalledWith(expect.stringContaining("mkdir -p"));
       expect(result.isError).toBeFalsy();
       expect(result.content[0].text).toContain("Successfully created directory");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // download_url
+  // -------------------------------------------------------------------------
+
+  describe("action=download_url", () => {
+    it("should execute curl command with correct URL and path", async () => {
+      mockSSHExecutor.mockResolvedValue("");
+      const tool = registeredTools.get("file_write");
+      const result = await tool.handler({
+        action: "download_url",
+        url: "https://example.com/firmware.bin",
+        path: "/tmp/firmware.bin",
+      });
+      expect(mockSSHExecutor).toHaveBeenCalledWith(
+        expect.stringContaining("curl -fsSL")
+      );
+      expect(mockSSHExecutor).toHaveBeenCalledWith(
+        expect.stringContaining("firmware.bin")
+      );
+      expect(result.isError).toBeFalsy();
+      expect(result.content[0].text).toContain("Successfully downloaded");
+    });
+
+    it("should reject non-HTTPS URL", async () => {
+      const tool = registeredTools.get("file_write");
+      const result = await tool.handler({
+        action: "download_url",
+        url: "http://example.com/file.bin",
+        path: "/tmp/file.bin",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("HTTPS");
+      expect(mockSSHExecutor).not.toHaveBeenCalled();
+    });
+
+    it("should reject path traversal", async () => {
+      const tool = registeredTools.get("file_write");
+      const result = await tool.handler({
+        action: "download_url",
+        url: "https://example.com/evil.bin",
+        path: "/tmp/../etc/passwd",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("not under an allowed write prefix");
+    });
+
+    it("should propagate SSH error as isError", async () => {
+      mockSSHExecutor.mockRejectedValue(new Error("curl: (7) Failed to connect"));
+      const tool = registeredTools.get("file_write");
+      const result = await tool.handler({
+        action: "download_url",
+        url: "https://example.com/file.bin",
+        path: "/tmp/file.bin",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("curl: (7)");
     });
   });
 

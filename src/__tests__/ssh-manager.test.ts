@@ -20,11 +20,13 @@ describe('SSHConnectionManager', () => {
     // Save original env
     originalEnv = { ...process.env };
 
-    // Set up test environment variables
+    // Set up test environment variables — explicitly clear SSH_PASSWORD so
+    // real .env values don't bleed in when testing key-based auth paths.
     process.env.SSH_HOST = 'test-host';
     process.env.SSH_PORT = '22';
     process.env.SSH_USERNAME = 'test-user';
     process.env.SSH_PRIVATE_KEY_PATH = '/path/to/key';
+    delete process.env.SSH_PASSWORD;
 
     // Create mock Client instance with ssh2's callback-based interface
     mockClient = {
