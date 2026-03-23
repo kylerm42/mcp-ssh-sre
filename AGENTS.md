@@ -381,26 +381,52 @@ Optional:
 - `LOG_LEVEL`: Logging verbosity - `debug`, `info`, `warn`, `error`, `silent` (default: `info`)
 - `NODE_ENV`: Set to 'test' to disable auto-start
 
-## Special Notes from .claude/CLAUDE.md
+## Accuracy and Verification
 
-### Accuracy and Verification
-- **Always count before claiming**: Use actual counts (e.g., `grep -c` for tool counts)
-- **Be precise and consistent**: If docs say different numbers, count and fix all
-- **Verify arithmetic**: When removing N tools from X total, verify the result
+- **Always count before claiming**: Never state tool counts or numbers without actually counting them first (e.g., use `grep -c` to count `server.tool()` calls)
+- **Be precise and consistent**: If documentation says "85 tools" and README says "86 tools", count the actual number and fix all inconsistencies
+- **Verify arithmetic**: When removing N tools from X total, actually verify the result instead of guessing
 
-### Version Bumping Workflow
-When bumping versions, update:
-1. `package.json` - version field
-2. `src/index.ts` - McpServer version (if version is specified)
-3. Run `bun run build && bun run test` to verify
+### Removing Features
 
-### Filter System
-All 12 tool modules support output filtering. Always include `...outputFiltersSchema.shape` in tool parameters.
+When removing tools or features:
+1. Count the actual number of tools being removed
+2. Count the current total across all files
+3. Calculate the new total: current - removed = new
+4. Update ALL documentation consistently:
+   - `AGENTS.md` - tool count
+   - `README.md` - tool count
+   - Test files - expected counts
+   - Tool registration tests
 
-### Platform Architecture
-- **Core tools**: 10 modules, always loaded on any Linux system
-- **Platform-specific tools**: Loaded based on auto-detection
-  - Unraid: 2 modules (array-tools, plugin-tools)
-  - Generic Linux: No extra modules (uses core only)
+## Version Bumping Workflow
 
-Tool loading handled by `src/tool-loader.ts` based on detected platform.
+After bumping the version:
+
+1. **Update version in these files:**
+   - `package.json` - version field
+   - `src/index.ts` - McpServer version (if version is specified)
+
+2. **Build and test:**
+   - Run `bun run build && bun run test`
+   - Verify all tests pass
+
+3. **Build and publish Docker image (if applicable):**
+   - Build with both version tag and latest:
+     ```bash
+     docker build -t your-registry.com/your-org/mcp-ssh-sre:{version} -t your-registry.com/your-org/mcp-ssh-sre:latest .
+     ```
+   - Push both tags to registry:
+     ```bash
+     docker push your-registry.com/your-org/mcp-ssh-sre:{version}
+     docker push your-registry.com/your-org/mcp-ssh-sre:latest
+     ```
+   - **Retry on network timeout**: If `docker push` fails due to network timeout, retry — the issue is likely transient
+
+4. **Update deployment configuration:**
+   - Update your deployment config file (e.g., `compose.yaml` or Kubernetes manifest)
+   - Update the `image:` tag to match the new version
+
+## Testing MCP Functionality
+
+When testing the deployed MCP server, use the MCP tools (e.g., `mcp__unraid-ssh__*`) to verify functionality. Test various filter combinations to ensure the filtering system works correctly.
