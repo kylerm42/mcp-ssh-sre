@@ -1,6 +1,5 @@
 import { Client } from "ssh2";
 import * as fs from "fs";
-import "dotenv/config";
 import { logger } from "./logger.js";
 
 /**

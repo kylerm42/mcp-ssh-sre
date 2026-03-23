@@ -1,6 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import "dotenv/config";
 import { SSHConnectionManager } from "./ssh-manager.js";
 import { initializePlatforms, platformRegistry, Platform } from "./platforms/index.js";
 import { loadTools } from "./tool-loader.js";

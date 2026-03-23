@@ -196,9 +196,9 @@ Multiple prefixes are comma-separated. If `WRITE_ALLOWED_PATHS` is not set, all 
 ## Development
 
 ```bash
-npm run dev      # Development with auto-reload
-npm test         # Run tests
-npm run build    # Build for production
+bun run dev      # Development with auto-reload
+bun run test     # Run tests
+bun run build    # Build for production
 ```
 
 ## License

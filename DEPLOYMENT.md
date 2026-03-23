@@ -4,7 +4,7 @@
 
 - Linux server with SSH access enabled
 - SSH key pair for passwordless authentication
-- Node.js 18+ (for local development only, not required for npm installation)
+- Bun (latest) — for local development only, not required for npm installation
 
 ## NPM Installation (Recommended)
 
@@ -97,9 +97,11 @@ For contributors working on the codebase:
 ```bash
 git clone https://github.com/ohare93/mcp-ssh-sre.git
 cd mcp-ssh-sre
-npm install
-npm run build
+bun install
+bun run build
 ```
+
+> **Note:** Bun loads `.env` files natively on startup — no separate `dotenv` step or import is required.
 
 ### Configuration
 
@@ -116,13 +118,13 @@ SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa_mcp
 
 ```bash
 # Stdio mode (for local MCP clients)
-npm start
+bun run start
 
 # Development mode with auto-reload
-npm run dev
+bun run dev
 
 # Run tests
-npm test
+bun run test
 ```
 
 ### Claude Desktop Configuration (Local Development)

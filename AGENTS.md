@@ -15,34 +15,34 @@ An MCP (Model Context Protocol) server providing read-only server monitoring too
 
 ### Build
 ```bash
-npm run build              # TypeScript compilation to dist/
+bun run build              # TypeScript compilation to dist/
 ```
 
 ### Development
 ```bash
-npm run dev                # Run stdio server with tsx (hot reload)
+bun run dev                # Run stdio server with Bun (hot reload)
 ```
 
 ### Production
 ```bash
-npm start                  # Run compiled stdio server
+bun run start              # Run compiled stdio server
 ```
 
 ### Testing
 ```bash
-npm test                   # Run all tests once (Vitest)
-npm run test:watch         # Run tests in watch mode
-npm run test:ui            # Launch Vitest UI
+bun run test               # Run all tests once (Vitest)
+bun run test:watch         # Run tests in watch mode
+bun run test:ui            # Launch Vitest UI
 
 # Run a single test file
-npx vitest run src/__tests__/docker-tools.test.ts
+bunx vitest run src/__tests__/docker-tools.test.ts
 
 # Run tests matching a pattern
-npx vitest run -t "Docker Tools"
+bunx vitest run -t "Docker Tools"
 ```
 
 **Test Expectations:**
-- All tests should pass (141 tests as of v2.1.0)
+- All tests should pass (178 tests as of v2.1.0)
 - Tests mock SSH executor and MCP server
 - Use `vi.fn()` for mocking, not manual mock implementations
 
@@ -392,7 +392,7 @@ Optional:
 When bumping versions, update:
 1. `package.json` - version field
 2. `src/index.ts` - McpServer version (if version is specified)
-3. Run `npm run build && npm test` to verify
+3. Run `bun run build && bun run test` to verify
 
 ### Filter System
 All 12 tool modules support output filtering. Always include `...outputFiltersSchema.shape` in tool parameters.
