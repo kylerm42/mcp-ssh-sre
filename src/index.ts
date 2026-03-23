@@ -67,7 +67,7 @@ async function main() {
 
   // Load tools for detected platform
   logger.debug("Loading tools for platform...");
-  loadTools(server, sshExecutor, detectedPlatform);
+  loadTools(server, sshExecutor, detectedPlatform, sshManager);
   logger.debug("All MCP tools registered");
 
   // Handle graceful shutdown

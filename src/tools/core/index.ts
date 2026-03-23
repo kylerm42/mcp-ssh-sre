@@ -9,3 +9,4 @@ export { registerPerformanceTools } from "./performance-tools.js";
 export { registerVMTools } from "./vm-tools.js";
 export { registerContainerTopologyTools } from "./container-topology-tools.js";
 export { registerHealthDiagnosticsTools } from "./health-diagnostics-tools.js";
+export { registerFileWriteTools } from "./file-write-tools.js";

@@ -3,11 +3,26 @@ import "dotenv/config";
 import { logger } from "./logger.js";
 
 /**
+ * Minimal surface of NodeSSH that SSHConnectionManager actually uses.
+ *
+ * Typing `ssh` against this interface instead of the concrete `NodeSSH` class
+ * prevents tsc from resolving NodeSSH's full type graph (which pulls in
+ * @types/ssh2's large union/overload types and triggers exponential expansion —
+ * TypeScript issue #34933).
+ */
+interface NodeSSHClient {
+  connect(config: Record<string, unknown>): Promise<unknown>;
+  execCommand(command: string): Promise<{ stdout: string; stderr: string; code: number | null }>;
+  putFile(localPath: string, remotePath: string): Promise<void>;
+  dispose(): void;
+}
+
+/**
  * SSH Connection Manager
  * Handles SSH connections to Unraid server with auto-reconnect functionality
  */
 export class SSHConnectionManager {
-  private ssh: NodeSSH;
+  private ssh: NodeSSHClient;
   private config: {
     host: string;
     port: number;
@@ -189,6 +204,19 @@ export class SSHConnectionManager {
       }
 
       throw new Error(`Failed to execute command: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Transfer a local file to the remote server via SFTP
+   */
+  async putFile(localPath: string, remotePath: string): Promise<void> {
+    try {
+      await this.ssh.putFile(localPath, remotePath);
+    } catch (error) {
+      throw new Error(
+        `Failed to transfer file to remote path "${remotePath}": ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Platform, SSHExecutor } from "./platforms/types.js";
+import { Platform, SSHExecutor, SFTPUploader } from "./platforms/types.js";
 import { logger } from "./logger.js";
 
 // Core tools - always loaded regardless of platform
@@ -14,6 +14,7 @@ import {
   registerVMTools,
   registerContainerTopologyTools,
   registerHealthDiagnosticsTools,
+  registerFileWriteTools,
 } from "./tools/core/index.js";
 
 /**
@@ -25,7 +26,8 @@ import {
 export function loadTools(
   server: McpServer,
   executor: SSHExecutor,
-  platform: Platform
+  platform: Platform,
+  sshManager: SFTPUploader
 ): void {
   // 1. Register core tools (always loaded)
   registerDockerTools(server, executor);
@@ -38,6 +40,7 @@ export function loadTools(
   registerVMTools(server, executor);
   registerContainerTopologyTools(server, executor);
   registerHealthDiagnosticsTools(server, executor);
+  registerFileWriteTools(server, executor, sshManager);
 
   // 2. Register platform-specific tools
   const platformModules = platform.getToolModules();
@@ -57,8 +60,8 @@ export function loadTools(
  * Count the total number of tools loaded
  */
 export function countTools(platform: Platform): { core: number; platform: number; total: number } {
-  // Core tools: 10 tools
-  const core = 10;
+  // Core tools: 11 tools
+  const core = 11;
 
   // Platform-specific tools count
   const platformCount = platform.getToolModules().length;
